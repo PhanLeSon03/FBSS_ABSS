@@ -3,127 +3,116 @@ clc
 close all
 c = 340.0;
 fs = 16000;
-fl = 1000;                    % lower cutoff frequency
+fl = 500;                    % lower cutoff frequency
 fu = 6000;                   % higher cutoff frequency
 fTest = 4000;
+N = 512;                    % number of samples in one frame
+N_RIR = 4800;
+fStep = fs/N;
+
+klow = round(fl/fStep);     % low index
+kup = round(fu/fStep);      % high index
+f = fStep*(0:N/2);       % frequencies used to compute W
+nf = length(f);
+
 lam = c/fu;
 dmics = 0.02; 
-N = 512;                    % number of samples in one frame
-fStep = fs/N;
+
+mu = 0.1;                    % parameter for beam-forming                     
+null = 1;                    % parameter for beam-forming
+
 M = 7;                      % number of microphones
-L = 101;
+L = 511;
+alpha1 = 0.01;
+alpha2 = 0.01;
 xMics = (-(M-1)/2:(M-1)/2)*dmics;
 
 % Room Impulse Response
-xRoom = 1 + (0:M-1)'*dmics;
-r = [xRoom ones(M,1) ones(M,1)];              % Receiver position [x y z] (m)
+xRoom = 1.5 + xMics;
+r = [xRoom' 2*ones(M,1) 1*ones(M,1)];              % Receiver position [x y z] (m)
 
-s1 = [1+(M-1)*dmics/2+2*cosd(60)  1+2*sind(60)   1];              % Source position [x y z] (m)
-s2 = [1+(M-1)*dmics/2+2*cosd(150) 1+2*sind(150)  1];              % Source position [x y z] (m)
-s3 = [1+(M-1)*dmics/2+2*cosd(0)   1+2*sind(0)    1];              % Source position [x y z] (m)
 
-R = [5 4 4];                % Room dimensions [x y z] (m)
-beta = 0.4;                 % Reverberation time (s)
+s1 = [1.5+0.5*cosd(90)  2+0.5*sind(90)   1];              % Source position [x y z] (m)
+s2 = [1.5+0.5*cosd(180) 2+0.5*sind(180)  1];              % Source position [x y z] (m)
+s3 = [1.5+0.5*cosd(0)   2+0.5*sind(0)    1];              % Source position [x y z] (m), SOI
 
-h1_1 = rir_generator(c, fs, r(1,:), s1, R, beta, N);
-h2_1 = rir_generator(c, fs, r(2,:), s1, R, beta, N);
-h3_1 = rir_generator(c, fs, r(3,:), s1, R, beta, N);
-h4_1 = rir_generator(c, fs, r(4,:), s1, R, beta, N);
-h5_1 = rir_generator(c, fs, r(5,:), s1, R, beta, N);
-h6_1 = rir_generator(c, fs, r(6,:), s1, R, beta, N);
-h7_1 = rir_generator(c, fs, r(7,:), s1, R, beta, N);
 
-h1_2 = rir_generator(c, fs, r(1,:), s2, R, beta, N);
-h2_2 = rir_generator(c, fs, r(2,:), s2, R, beta, N);
-h3_2 = rir_generator(c, fs, r(3,:), s2, R, beta, N);
-h4_2 = rir_generator(c, fs, r(4,:), s2, R, beta, N);
-h5_2 = rir_generator(c, fs, r(5,:), s2, R, beta, N);
-h6_2 = rir_generator(c, fs, r(6,:), s2, R, beta, N);
-h7_2 = rir_generator(c, fs, r(7,:), s2, R, beta, N);
+R = [3.5 6 3];                % Room dimensions [x y z] (m)
+beta = 0.3;                 % Reverberation time (s)
+mtype = 'omnidirectional';  % Type of microphone
+order = 2;                  % Reflection order
+dim = 3;                    % Room dimension
+orientation = [0 0];            % Microphone orientation (rad)
+hp_filter = 1;              % Enable high-pass filter
 
-h1_3 = rir_generator(c, fs, r(1,:), s3, R, beta, N);
-h2_3 = rir_generator(c, fs, r(2,:), s3, R, beta, N);
-h3_3 = rir_generator(c, fs, r(3,:), s3, R, beta, N);
-h4_3 = rir_generator(c, fs, r(4,:), s3, R, beta, N);
-h5_3 = rir_generator(c, fs, r(5,:), s3, R, beta, N);
-h6_3 = rir_generator(c, fs, r(6,:), s3, R, beta, N);
-h7_3 = rir_generator(c, fs, r(7,:), s3, R, beta, N);
+% diffuse noise
+diffuse_noise =0;
+
+
+
+[H1,beta1_hat] = rir_generator(c, fs, r, s1, R, beta, N_RIR, mtype, order, dim, orientation, hp_filter); %rir(fs, r(iMic,:), 12, beta, R, s1);%
+[H2,beta2_hat] = rir_generator(c, fs, r, s2, R, beta, N_RIR, mtype, order, dim, orientation, hp_filter); %rir(fs, r(iMic,:), 12, beta, R, s2);% 
+[H3,beta3_hat] = rir_generator(c, fs, r, s3, R, beta, N_RIR, mtype, order, dim, orientation, hp_filter); %rir(fs, r(iMic,:), 12, beta, R, s3);%
+
 
 transducer = phased.OmnidirectionalMicrophoneElement; %('FrequencyRange',[20 20000])
 array = phased.ULA('Element',transducer,'NumElements',M,'ElementSpacing',dmics);
-alpha1 = 0.01;
-alpha2 = 0.01;
-t = 0:1/fs:0.5;
 
-incidentAngle1 = [20 ;0]; %10° azimuth and 90° elevation, 20 = 90 -70:70
-incidentAngle2 = [-60 ;0]; % -60 = 90 -150:150
-incidentAngle3 = [90 ;0]; % source of interset 90 = 90 -0: 0
+t = 0:1/fs:1;
 
-% Simulate a chirp signal with a 500 Hz bandwidth.
-Source1 = chirp(t,5000,0.5,5000);%0.5*randn(1,8001);%
-% 
-% Nx=(N/2)-10; % the number of tones
-% mindex=0:Nx;
-% phi=pi*mindex.*mindex/Nx;
-% k0 = 5;
-% omega=2*pi*(k0*ones(Nx+1,1)+mindex')*fs/N;
-% Source1=sum(sin(omega*t+phi'*ones(1,length(t))),1)/Nx;
-% pspectrum(Source1,fs,'spectrogram','TimeResolution',0.1, ...
-%         'OverlapPercent',99,'Leakage',0.85)
 
-Source2 =  randn(1,8001);%0.5*chirp(t,2000,0.5,2000);%
+Nx=(N/2)-2; % the number of tones
+mindex=0:Nx;
+phi=pi*mindex.*mindex/Nx;
+k0 = 5;
+omega=2*pi*(k0*ones(Nx+1,1)+mindex')*fs/N;
+Source1=sum(sin(omega*t+phi'*ones(1,length(t))),1)/Nx;
+Source1 = 0.5*Source1/max(Source1);
+
+
+Source2 =  0.5*chirp(t,2000,1,2000);%rand(1,16001);%
 Source3 = zeros(size(Source1));
-%Source3(6001:6500) = 5*ones(500,1);
-Source3(6001) = 5;Source3(6500) = 5;
+Source3(6001) = 1;Source3(6500) = 1;
+
+
 Source1 = bandpass(Source1,[fl fu],fs);
 Source2 = bandpass(Source2,[fl fu],fs);
 Source3 = bandpass(Source3,[fl fu],fs);
 
-
 % Create an incident wave arriving at the array. Add gaussian noise to the wave.
 collector = phased.WidebandCollector('Sensor',array,'PropagationSpeed',c, ...
     'SampleRate',fs,'ModulatedInput',false,'NumSubbands',N);
-
-
-% free-field
-%signal1 = collector(Source1.' ,incidentAngle1);
-%signal2 = collector(Source2.' ,incidentAngle2);
-%signal3 = collector(Source3.' ,incidentAngle3);
 
 signal1 = zeros(length(Source1),M);
 signal2 = zeros(length(Source2),M);
 signal3 = zeros(length(Source3),M);
 
 % Room Impulse Response
-signal1(:,1) = filtfilt(h1_1,1,Source1);
-signal1(:,2) = filtfilt(h2_1,1,Source1);
-signal1(:,3) = filtfilt(h3_1,1,Source1);
-signal1(:,4) = filtfilt(h4_1,1,Source1);
-signal1(:,5) = filtfilt(h5_1,1,Source1);
-signal1(:,6) = filtfilt(h6_1,1,Source1);
-signal1(:,7) = filtfilt(h7_1,1,Source1);
+for iMic=1:M
+    signal1(:,iMic) = filter (H1(iMic,:),1,Source1);
+    signal2(:,iMic) = filter (H2(iMic,:),1,Source2);
+    signal3(:,iMic) = filter (H3(iMic,:),1,Source3); % SOI
+end
 
-signal2(:,1) = filtfilt(h1_2,1,Source2);
-signal2(:,2) = filtfilt(h2_2,1,Source2);
-signal2(:,3) = filtfilt(h3_2,1,Source2);
-signal2(:,4) = filtfilt(h4_2,1,Source2);
-signal2(:,5) = filtfilt(h5_2,1,Source2);
-signal2(:,6) = filtfilt(h6_2,1,Source2);
-signal2(:,7) = filtfilt(h7_2,1,Source2);
+signal = signal3  +  signal2 + signal1;
 
-signal3(:,1) = filtfilt(h1_3,1,Source3);
-signal3(:,2) = filtfilt(h2_3,1,Source3);
-signal3(:,3) = filtfilt(h3_3,1,Source3);
-signal3(:,4) = filtfilt(h4_3,1,Source3);
-signal3(:,5) = filtfilt(h5_3,1,Source3);
-signal3(:,6) = filtfilt(h6_3,1,Source3);
-signal3(:,7) = filtfilt(h7_3,1,Source3);
+if diffuse_noise==0
+   SNR = 10;
+   noise = randn(size(signal));
+   noise = noise/max(max(abs(noise)));
+   noise = (10^(-SNR/20))*noise*max(max(signal3));
+   recsignal = signal+noise;
 
-signal = signal1 + signal2 + signal3;
+else
+    params.fs  = fs;
+    params.c  = c;
+    params.N_phi = 360;
+    signal_diff = sinf_1D(xMics,length(Source1),params)';
+    signal_diff = bandpass(signal_diff,[fl fu],fs)/max(max(abs(signal_diff)));
+    SNR1 = 10;
+    recsignal = signal + (10^(-SNR1/20))*max(max(signal3))*signal_diff;
+end
 
-SNR = 40;
-noise = (10^(-SNR/20))*randn(size(signal))*mean(mean(signal));
-recsignal = signal + noise;
 
 % pspectrum(recsignal(:,4),fs,'spectrogram','TimeResolution',0.1, ...
 %       'OverlapPercent',99,'Leakage',0.85)
@@ -134,27 +123,28 @@ gscbeamformer = phased.GSCBeamformer('SensorArray',array, ...
     'PropagationSpeed',c,'SampleRate',fs,'DirectionSource','Input port', ...
     'FilterLength',L,'LMSStepSize',alpha1);
 
-ygsc = gscbeamformer(recsignal,[90;0]);
+ygsc = gscbeamformer(recsignal,[90;0]); %% 90,0
 
 
 % plotting
 pos = [0.0 0.0 0.45 0.45];
-figure('numbertitle','off','name','Full wave signals','Units','normal',...
+figure('numbertitle','on','name','Full wave signals','Units','normal',...
        'Position',pos);
 plot(t*1000,recsignal(:,4))
 hold on
 plot(t*1000,signal3(:,4),'g','Linewidth',2)  % Source3
 plot(t*1000,ygsc,'r')
 xlabel('Time (ms)')
-ylabel('Amplitude')
-legend('Received signal','SOI','GSC','Location','Best')
+%ylabel('Amplitude')
+legend('Received signal','SOI+Reverberation','GSC','Location','Best')
+
 grid on
     set(gcf,'color','w');
     set(gcf,'defaultAxesFontSize',15)
     set(gca,'FontSize', 15);
 
 pos(2) = pos(2)+0.4;
-figure('numbertitle','off','name','Wave signales','Units','normal',...
+figure('numbertitle','on','name','Wave signales','Units','normal',...
        'Position',pos);
 idx = 5800:7200;
 plot(t(idx)*1000,recsignal(idx,4))
@@ -162,7 +152,9 @@ hold on
 plot(t(idx)*1000,signal3(idx,4),'g','Linewidth',2) % Source3(idx)
 plot(t(idx)*1000,ygsc(idx),'r')
 xlabel('Time (ms)')
-legend('Received signal','SOI','GSC','Location','Best')
+
+legend('Received signal','SOI+Reverberation','GSC','Location','Best')
+
 grid on
     set(gcf,'color','w');
     set(gcf,'defaultAxesFontSize',15)
@@ -174,19 +166,20 @@ grid on
 
 %% Propose method
 
-klow = round(fl/fStep);     % low index
-kup = round(fu/fStep);      % high index
-f = fStep*(0:N/2);       % frequencies used to compute W
-nf = length(f);
 phi = pi/180*(0:1:360);
 Nphi = length(phi);
 WNG_SD = zeros(nf,1);
 WNG_SDSS = zeros(nf,1);
+WNG_SDSS_C = zeros(nf,1);
+
 DF_SD = zeros(nf,1);
 DF_SDSS = zeros(nf,1);
+DF_SDSS_C = zeros(nf,1);
 bpdB_SD = zeros(nf,Nphi);
 bpdB_SDSS = zeros(nf,Nphi);
+bpdB_SDSS_C = zeros(nf,Nphi);
 W_SDSS = zeros(M,nf);
+W_SDSS_C =  zeros(M,nf);
 
 % for main-lobe beam
 phi_desired = 0;
@@ -196,8 +189,7 @@ fd = [1 zeros(size(phi_zero))];  % resonse in desired directions
 
 phi3 = [phi_desired phi_zero];
 theta3 = 90*ones(1,length(fd));
-mu = 0.1;                    % parameter for beam-forming                     
-null = 1;                    % parameter for beam-forming
+
 % find optimum frequency-domain weight vector      
 Gamma = zeros(length(xMics),length(xMics));
 for i=1:length(xMics)
@@ -205,25 +197,15 @@ for i=1:length(xMics)
 end
 nguy = 0.1;
 
-Wup = ones(M,N/2+1)/M;
-for k = 2:klow
-    beta = 2*pi*(k-1)*fStep/c;
-    d0 = exp(1j*beta*xMics'*cosd(phi_desired));        % steering vector at peak of side-lobe
-    Shi = (sin(beta*Gamma)./(beta*Gamma));
-    Shi(logical(eye(size(Shi)))) = 1;       
-    Wup(:,k) =(Shi*(1-nguy) + nguy*eye(length(xMics)))^-1*d0 / (d0'*(Shi*(1-nguy) + nguy*eye(length(xMics)))^-1*d0);
-    Wup(:,k) = d0/M;
-end
+Wup = zeros(M,N/2+1)/M;
+
 Wup(:,klow+1:kup+1) =  bf_coefs(xMics',theta3,phi3,fd,fStep*(klow:kup),mu,null);
-for k = kup+2:N/2+1
-    beta = 2*pi*(k-1)*fStep/c;
-    df = exp(1j*beta*xMics'*cosd(phi_desired));        % steering vector at peak of side-lobe
-    Wup(:,k) = df/M;
-end
+
 
 kx1 = round(300/fStep);%-klow+1; % index threshold for spatial aliasing
 kx2 = klow+1; % index threshold for spatial aliasing
-for k = klow:kup+1
+for k = klow+1:kup+1
+    
     [R,theta,p] = array_pattern_fft(xMics',Wup,f(k),k); 
 
     % for side-lobe beam
@@ -262,20 +244,53 @@ for k = klow:kup+1
     Rdif = spatio_spect_corr(beta,xMics');
     DF_SD(k) = 10*log10(abs(Wup(:,k)'*ds)/(Wup(:,k)'*Rdif*Wup(:,k)));
     DF_SDSS(k) = 10*log10(1/(W_SDSS(:,k)'*Rdif*W_SDSS(:,k)));
-
-    
 end
 
+% if Calibration step enables
+for k = klow:kup+1
+    [R,theta,p] = array_pattern_fft(xMics',Wup,f(k),k); 
 
+    % for side-lobe beam
+    if k < kx2
+        phi_desired_s = 180;
+        phi_zero_s = phi_zero;
+    else
+      [~,locs]=findpeaks(1./R(1:length(R)/2));
+       phi_desired_s = 180;
+       phi_zero_s = phi_zero;   %(locs-1)
+    end
+    fd_s = [1 zeros(size(phi_zero_s))];  % resonse in desired directions
+    phi3_s = [phi_desired_s, phi_zero_s];
+    theta3_s =  90*ones(1,length(phi3_s));
+    W_lo_C = bf_coefs(xMics',theta3_s,phi3_s,fd_s,f,mu,null);
+    
+    % scale factor
+    beta = 2*pi*f(k)/c;
+    df = exp(1j*beta*xMics'*cosd(phi_desired_s(1)));        % steering vector at peak of side-lobe
+    scale = Wup(:,k)'*df;
 
-%Wup(:,klow+1:kup+1) =  W;
+    W_SDSS_C(:,k) =  scale*W_lo_C(:,k);
+    
+    D = exp(1j*beta*xMics'*cos(p));                    % steering matrix at a frequency
+
+    
+    bp = W_SDSS_C(:,k)'*D;
+    bpdB_SDSS_C(k,:) = abs(bp);%min(20*log10(abs(bp)+eps),dBmax);
+    
+    ds = exp(1j*beta*xMics'*cosd(phi_desired(1)));         % steering vector at look direction
+    WNG_SDSS_C(k) = 10*log10(1/(W_SDSS_C(:,k)'*W_SDSS_C(:,k)));
+    
+    Rdif = spatio_spect_corr(beta,xMics');
+    DF_SDSS_C(k) = 10*log10(1/(W_SDSS_C(:,k)'*Rdif*W_SDSS_C(:,k)));
+end
 
 Wlow = W_SDSS;
-Wlow(:,1:klow) = 0; 
-Wlow(:,kup+2:end) = 0; 
+
 
 Hup = fftshift(irfft(Wup,[],2),2);
 Hlow = fftshift(irfft(Wlow,[],2),2);
+Hlow_C = fftshift(irfft(W_SDSS_C,[],2),2);
+
 % fvtool((Hup(4,:)))
 % fvtool((Hlow(4,:)))
 
@@ -300,6 +315,37 @@ for iLoop = 1:length(recsignal(:,1))- N + 1
    yFill_up(1) = y_beam1;
    y_up = sum(h_u.*yFill_up);
    
+   if 0 % adaptive for null beamforming
+       sig_F = fft(recsignal(iLoop:iLoop+N-1,:),N,1);
+       
+       for k = klow:kup+1
+            Rx1 = sig_F(k,:)'*sig_F(k,:);
+            fd_s = [1 zeros(size(phi_zero))];  % resonse in desired directions
+            phi3_s = [phi_desired_s, phi_zero];
+            theta3_s =  90*ones(1,length(phi3_s));
+            W_lo_C = bf_coefs_R(xMics',theta3_s,phi3_s,fd_s,f,mu,0,Rx1);
+
+            % scale factor
+            beta = 2*pi*f(k)/c;
+            df = exp(1j*beta*xMics'*cosd(phi_desired_s(1)));        % steering vector at peak of side-lobe
+            scale = Wup(:,k)'*df;
+
+            W_SDSS_C(:,k) =  scale*W_lo_C(:,k);
+
+            D = exp(1j*beta*xMics'*cos(p));                    % steering matrix at a frequency
+
+
+            bp = W_SDSS_C(:,k)'*D;
+            bpdB_SDSS_C(k,:) = abs(bp);%min(20*log10(abs(bp)+eps),dBmax);
+
+            ds = exp(1j*beta*xMics'*cosd(phi_desired(1)));         % steering vector at look direction
+            WNG_SDSS_C(k) = 10*log10(1/(W_SDSS_C(:,k)'*W_SDSS_C(:,k)));
+
+            Rdif = spatio_spect_corr(beta,xMics');
+            DF_SDSS_C(k) = 10*log10(1/(W_SDSS_C(:,k)'*Rdif*W_SDSS_C(:,k)));
+       end
+        Hlow_C = fftshift(irfft(W_SDSS_C,[],2),2);
+   end
    y_beam2 = sum(sum(Hlow.*recsignal(iLoop:iLoop+N-1,:)',2),1);
    yFill_low = circshift(yFill_low,1);
    yFill_low(1) = y_beam2;
@@ -330,25 +376,30 @@ figure('numbertitle','off','name','Wave signals','Units','normal',...
        'Position',pos);
 plot(t*1000,recsignal(:,4))
 hold on
-plot(t*1000,signal3(:,4),'g','Linewidth',2) % Source3
+plot(t*1000,signal3(:,4),'g','Linewidth',2) % Source3 
 plot(t*1000,out_ABSS,'r')
+%plot(t*1000,noise(:,4))
 xlabel('Time (ms)')
-legend('Received signal','SOI','ABSS','Location','Best')
+
+legend('Received signal','SOI+Reverberation','ABSS','Location','Best')
+
 grid on
     set(gcf,'defaultAxesFontSize',15)
     set(gca,'FontSize', 15);
     
     
 pos(2) = pos(2) +0.3;
-figure('numbertitle','off','name','Wave signals','Units','normal',...
+figure('numbertitle','on','name','Wave signals','Units','normal',...
        'Position',pos);
 idx = 5800:7200;
 plot(t(idx)*1000,recsignal(idx,4))
 hold on
-plot(t(idx)*1000,signal3(idx,4),'g','Linewidth',2) % Source3(idx)
+plot(t(idx)*1000,signal3(idx,4),'g','Linewidth',2) % Source3(idx)/20
 plot(t(idx)*1000,out_ABSS(idx),'r')
 xlabel('Time (ms)')
-legend('Received signal','SOI','ABSS','Location','Best')
+
+legend('Received signal','SOI+Reverberation','ABSS','Location','Best')
+
 grid on
     set(gcf,'color','w');
     set(gcf,'defaultAxesFontSize',15)
@@ -356,23 +407,27 @@ grid on
 
 
 pos(2) = pos(2) - 0.3;
-figure('numbertitle','off','name','Wave signales','Units','normal',...
+figure('numbertitle','on','name','Wave signales','Units','normal',...
        'Position',pos);
-idx = 5800:7000;
-plot(t(idx)*1000,signal3(idx,4),'g','Linewidth',2) % Source3(idx) 
+
+idx = 5000:8000;
+
+plot(t(idx)*1000,signal3(idx,4),'g','Linewidth',2) % Source3(idx)/20 
 hold on
-plot(t(idx)*1000,ygsc(idx),'b')
+plot(t(idx)*1000,out_FBSS(idx),'b') % ygsc(idx)
 plot(t(idx)*1000,out_ABSS(idx),'r')
 xlabel('Time (ms)')
-legend('SOI','GSC','ABSS','Location','Best')
-    set(gcf,'color','w'); 
-    set(gcf,'defaultAxesFontSize',15)
-    set(gca,'FontSize', 15);
+
+legend('SOI+Reverberation','FBSS','ABSS','Location','Best')
+
+set(gcf,'color','w'); 
+set(gcf,'defaultAxesFontSize',15)
+set(gca,'FontSize', 15);
 
 grid on
 %%
-e1 = mean((ygsc(idx) - signal3(idx,4)).^2)
-e2 = mean((out_ABSS(idx) - signal3(idx,4)).^2)
+e1 = mean((ygsc(idx) - signal3(idx,4)).^2);
+e2 = mean((out_ABSS(idx) - signal3(idx,4)).^2);
 %%
 % pos = [0.055 0.04 0.4 0.38];
 % figure('numbertitle','off','name','WNG',...
@@ -399,46 +454,66 @@ e2 = mean((out_ABSS(idx) - signal3(idx,4)).^2)
 % ylabel('DF (dB)');
 
 %%
-% pos = [0.045 0.45 0.3 0.35];
-% figure('numbertitle','off','name','Upper path''s beam pattern',...
-%        'Units','normal','Position',pos);
-% ph = 180/pi*p; 
-%   
-% imagesc(ph(1:180),fStep*(klow:kup),bpdB_SD((klow+1:kup+1),1:180));
-% axis tight
-% %set(gca,'XTick',[0 45 90 135 180]);
-% %view([25,50]);
-% xlabel('Incident angle \phi in °');
-% ylabel('f in Hz');
-% zlabel('Magnitude');
-% title('Array response at the upper path (preserving the main-lobe)');
-% set(gca, 'xdir', 'reverse');
-% set(gca, 'ydir', 'normal');
-% %zlim([-dBmax 0])
-% set(gcf,'color','w');
-% grid on
-% colorbar 
-% %colormap jet
-% 
-% pos(1) = pos(1)+0.32;
-% figure('numbertitle','off','name','Lower path''s beam pattern',...
-%        'Units','normal','Position',pos);
-%   
-% imagesc(ph(1:180),fStep*(klow:kup), bpdB_SDSS((klow+1:kup+1),1:180));
-% axis tight
-% %set(gca,'XTick',[0 45 90 135 180]);
-% %view([25,50]);
-% xlabel('Incident angle \phi in °');
-% ylabel('f in Hz');
-% zlabel('Magnitude');
-% title('Array response at the lower path (suppressing the main-lobe)');
-% set(gca, 'xdir', 'reverse');
-% set(gca, 'ydir', 'normal');
-% %zlim([-dBmax 0])
-% set(gcf,'color','w');
-% grid on
-% colorbar 
-% %colormap jet
+pos = [0.045 0.45 0.3 0.35];
+figure('numbertitle','on','name','Upper path''s beam pattern',...
+       'Units','normal','Position',pos);
+ph = 180/pi*p; 
+  
+imagesc(ph(1:180),fStep*(klow:kup),bpdB_SD((klow+1:kup+1),1:180));
+axis tight
+%set(gca,'XTick',[0 45 90 135 180]);
+%view([25,50]);
+xlabel('Incident angle \phi in °');
+ylabel('f in Hz');
+zlabel('Magnitude');
+title('Array response at the upper path (preserving the main-lobe)');
+set(gca, 'xdir', 'reverse');
+set(gca, 'ydir', 'normal');
+%zlim([-dBmax 0])
+set(gcf,'color','w');
+grid on
+colorbar 
+%colormap jet
+
+pos(1) = pos(1)+0.32;
+figure('numbertitle','on','name','Lower path''s beam pattern',...
+       'Units','normal','Position',pos);
+  
+imagesc(ph(1:180),fStep*(klow:kup), bpdB_SDSS((klow+1:kup+1),1:180));
+axis tight
+%set(gca,'XTick',[0 45 90 135 180]);
+%view([25,50]);
+xlabel('Incident angle \phi in °');
+ylabel('f in Hz');
+zlabel('Magnitude');
+title('Array response at the lower path (suppressing the main-lobe)');
+set(gca, 'xdir', 'reverse');
+set(gca, 'ydir', 'normal');
+%zlim([-dBmax 0])
+set(gcf,'color','w');
+grid on
+colorbar 
+%colormap jet
+
+pos(1) = pos(1)+0.32;
+figure('numbertitle','on','name','Lower path''s beam pattern',...
+       'Units','normal','Position',pos);
+  
+imagesc(ph(1:180),fStep*(klow:kup), bpdB_SDSS_C((klow+1:kup+1),1:180));
+axis tight
+%set(gca,'XTick',[0 45 90 135 180]);
+%view([25,50]);
+xlabel('Incident angle \phi in °');
+ylabel('f in Hz');
+zlabel('Magnitude');
+title('Array response at the lower path (suppressing the main-lobe)');
+set(gca, 'xdir', 'reverse');
+set(gca, 'ydir', 'normal');
+%zlim([-dBmax 0])
+set(gcf,'color','w');
+grid on
+colorbar 
+%colormap jet
 
 
 

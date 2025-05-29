@@ -36,9 +36,13 @@ alpha1 = 0.01;
 alpha2 = 0.04;
 t = 0:1/fs:0.5;
 
-incidentAngle1 = [0 ;0]; %10° azimuth and 90° elevation, 20 = 90 -70
-incidentAngle2 = [-60 ;0]; % -60 = 90 -150
-incidentAngle3 = [90 ;0]; % source of interset 0 = 90-90
+% incidentAngle1 = [0 ;0]; %10° azimuth and 90° elevation, 20 = 90 -70
+% incidentAngle2 = [-60 ;0]; % -60 = 90 -150
+% incidentAngle3 = [90 ;0]; % source of interset 0 = 90-90
+
+incidentAngle1 = [0 ;0]; %10° azimuth and 90° elevation, 20 = 90 -90
+incidentAngle2 = [-90 ;0]; % -60 = 90 -180
+incidentAngle3 = [90 ;0]; % source of interset 0 = 90-0
 
 
 % Create an incident wave arriving at the array. Add gaussian noise to the wave.

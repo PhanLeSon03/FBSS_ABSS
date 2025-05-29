@@ -34,8 +34,8 @@ Source1 = chirp(t,5000,0.5,5000);%0.5*randn(1,8001);%
 % pspectrum(Source1,fs,'spectrogram','TimeResolution',0.1, ...
 %         'OverlapPercent',99,'Leakage',0.85)
 
-Source2 =  randn(1,8001);%0.5*chirp(t,2000,0.5,2000);%
 
+Source2 =randn(1,8001);% 0.5*chirp(t,2000,0.5,2000);%
 
 
 Source3 = chirp(t,fTest-2000,0.5,fTest-2000);
@@ -61,7 +61,7 @@ signal3 = collector(Source3.' ,incidentAngle3);
 
 signal = signal1 + signal2 + signal3;
 
-SNR = 40;
+SNR = 30;
 noise = sqrt(10^(-SNR/10))*randn(size(signal));
 recsignal = signal + noise;
 

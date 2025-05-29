@@ -3,23 +3,23 @@ clc
 close all
 c = 340.0;
 fs = 16000;
-fl = 2000;                    % lower cutoff frequency
+fl = 500;                    % lower cutoff frequency
 fu = 6000;                   % higher cutoff frequency
 fTest = 4000;
 lam = c/fu;
 dmics = 0.02; 
 N = 512;                    % number of samples in one frame
 M = 7;                      % number of microphones
-L = 35;
+L = 511;
 xMics = (-(M-1)/2:(M-1)/2)*dmics;
 %xMics = (0:M-1)*dmics;
 transducer = phased.OmnidirectionalMicrophoneElement; %('FrequencyRange',[20 20000])
 array = phased.ULA('Element',transducer,'NumElements',M,'ElementSpacing',dmics);
 alpha1 = 0.01;
-alpha2 = 0.04;
+alpha2 = 0.01;
 t = 0:1/fs:0.5;
 
-incidentAngle1 = [0 ;0]; %10° azimuth and 90° elevation, 20 = 90 -70
+incidentAngle1 = [20 ;0]; %10° azimuth and 90° elevation, 20 = 90 -70
 incidentAngle2 = [-60 ;0]; % -60 = 90 -150
 incidentAngle3 = [90 ;0]; % source of interset
 
@@ -27,8 +27,6 @@ incidentAngle3 = [90 ;0]; % source of interset
 % Create an incident wave arriving at the array. Add gaussian noise to the wave.
 collector = phased.WidebandCollector('Sensor',array,'PropagationSpeed',c, ...
     'SampleRate',fs,'ModulatedInput',false,'NumSubbands',N);
-
-
 
 
 
