@@ -11,44 +11,52 @@ dmics = 0.02;
 N = 512;                    % number of samples in one frame
 M = 7;                      % number of microphones
 L = 35;
+N_RIR = 4800;
 %
 xMics = (-(M-1)/2:(M-1)/2)*dmics;
-xRoom = 1 + (0:M-1)'*dmics;
-r = [xRoom ones(M,1) ones(M,1)];              % Receiver position [x y z] (m)
+
+% Room Impulse Response
+xRoom = 1.5 + xMics;
+r = [xRoom' 2*ones(M,1) 1*ones(M,1)];              % Receiver position [x y z] (m)
 
 
-s = [2+(M-1)*dmics/2 1 1];              % Source position [x y z] (m)
-R = [5 4 4];                % Room dimensions [x y z] (m)
-beta = 0.4;                 % Reverberation time (s)
+s1 = [1.5+0.5*cosd(90)  2+0.5*sind(90)   1];              % Source position [x y z] (m)
+s2 = [1.5+0.5*cosd(180) 2+0.5*sind(180)  1];              % Source position [x y z] (m)
+s3 = [1.5+0.5*cosd(0)   2+0.5*sind(0)    1];              % Source position [x y z] (m), SOI
 
-h1 = rir_generator(c, fs, r(1,:), s, R, beta, N);
-h2 = rir_generator(c, fs, r(2,:), s, R, beta, N);
-h3 = rir_generator(c, fs, r(3,:), s, R, beta, N);
-h4 = rir_generator(c, fs, r(4,:), s, R, beta, N);
-h5 = rir_generator(c, fs, r(5,:), s, R, beta, N);
-h6 = rir_generator(c, fs, r(6,:), s, R, beta, N);
-h7 = rir_generator(c, fs, r(7,:), s, R, beta, N);
+
+R = [3.5 6 3];                % Room dimensions [x y z] (m)
+beta = 0.3;                 % Reverberation time (s)
+mtype = 'omnidirectional';  % Type of microphone
+order = 2;                  % Reflection order
+dim = 3;                    % Room dimension
+orientation = [0 0];            % Microphone orientation (rad)
+hp_filter = 1;              % Enable high-pass filter
+
+[H1,beta1_hat] = rir_generator(c, fs, r, s1, R, beta, N_RIR, mtype, order, dim, orientation, hp_filter); %rir(fs, r(iMic,:), 12, beta, R, s1);%
+[H2,beta2_hat] = rir_generator(c, fs, r, s2, R, beta, N_RIR, mtype, order, dim, orientation, hp_filter); %rir(fs, r(iMic,:), 12, beta, R, s2);% 
+[H3,beta3_hat] = rir_generator(c, fs, r, s3, R, beta, N_RIR, mtype, order, dim, orientation, hp_filter); %rir(fs, r(iMic,:), 12, beta, R, s3);%
+
 
 %xMics = (0:M-1)*dmics;
 transducer = phased.OmnidirectionalMicrophoneElement; %('FrequencyRange',[20 20000])
 array = phased.ULA('Element',transducer,'NumElements',M,'ElementSpacing',dmics);
 alpha1 = 0.01;
-alpha2 = 0.04;
+alpha2 = 0.01;
 t = 0:1/fs:0.5;
-
-% incidentAngle1 = [0 ;0]; %10° azimuth and 90° elevation, 20 = 90 -70
-% incidentAngle2 = [-60 ;0]; % -60 = 90 -150
-% incidentAngle3 = [90 ;0]; % source of interset 0 = 90-90
 
 incidentAngle1 = [0 ;0]; %10° azimuth and 90° elevation, 20 = 90 -90
 incidentAngle2 = [-90 ;0]; % -60 = 90 -180
-incidentAngle3 = [90 ;0]; % source of interset 0 = 90-0
-
+incidentAngle3 = [90 ;0]; % source of interset
 
 % Create an incident wave arriving at the array. Add gaussian noise to the wave.
 collector = phased.WidebandCollector('Sensor',array,'PropagationSpeed',c, ...
     'SampleRate',fs,'ModulatedInput',false,'NumSubbands',N);
 
+% MATLAB toolbox for GSC---------------------------------------------------
+gscbeamformer = phased.GSCBeamformer('SensorArray',array, ...
+    'PropagationSpeed',c,'SampleRate',fs,'DirectionSource','Input port', ...
+    'FilterLength',L,'LMSStepSize',alpha1);
 
 %% Fixed beamformings design
 fStep = fs/N;
@@ -151,53 +159,54 @@ Hup = fftshift(irfft(Wup,[],2),2);
 Hlow = fftshift(irfft(Wlow,[],2),2);
 
 
-pos = [0.045 0.45 0.3 0.35];
-myFig = figure('numbertitle','off','name','LCMV beam pattern',...
-       'Units','normal','Position',pos);
-ph = 180/pi*p; 
-  
-imagesc(ph(1:180),f,bpdB_SD(:,1:180));
-axis tight
-%set(gca,'XTick',[0 45 90 135 180]);
-%view([25,50]);
-xlabel('Incident angle \phi in °');
-ylabel('f in Hz');
-zlabel('Magnitude');
-title('Directivity response of the array');
-set(gca, 'xdir', 'reverse');
-set(gca, 'ydir', 'normal');
-%zlim([-dBmax 0])
-set(gcf,'color','w');
-grid on
-colorbar 
-%colormap jet
-    set(findall(myFig, 'Type', 'Text'),'FontWeight', 'Normal');
-    set(gcf,'defaultAxesFontSize',15)
-    set(gca,'FontSize', 15);
 
-
-pos(1) = pos(1)+0.32;
-myFig = figure('numbertitle','off','name','MLMV beam pattern',...
-       'Units','normal','Position',pos);
-  
-imagesc(ph(1:180),f, bpdB_SDSS(:,1:180));
-axis tight
-%set(gca,'XTick',[0 45 90 135 180]);
-%view([25,50]);
-xlabel('Incident angle \phi in °');
-ylabel('f in Hz');
-zlabel('Magnitude');
-title('Directivity response of the array');
-set(gca, 'xdir', 'reverse');
-set(gca, 'ydir', 'normal');
-%zlim([-dBmax 0])
-set(gcf,'color','w');
-grid on
-colorbar 
-%colormap jet
-    set(findall(myFig, 'Type', 'Text'),'FontWeight', 'Normal');
-    set(gcf,'defaultAxesFontSize',15)
-    set(gca,'FontSize', 15);
+% pos = [0.045 0.45 0.3 0.35];
+% myFig = figure('numbertitle','off','name','LCMV beam pattern',...
+%        'Units','normal','Position',pos);
+% ph = 180/pi*p; 
+% 
+% imagesc(ph(1:180),f,bpdB_SD(:,1:180));
+% axis tight
+% %set(gca,'XTick',[0 45 90 135 180]);
+% %view([25,50]);
+% xlabel('Incident angle \phi in °');
+% ylabel('f in Hz');
+% zlabel('Magnitude');
+% title('Directivity response of the array');
+% set(gca, 'xdir', 'reverse');
+% set(gca, 'ydir', 'normal');
+% %zlim([-dBmax 0])
+% set(gcf,'color','w');
+% grid on
+% colorbar 
+% %colormap jet
+%     set(findall(myFig, 'Type', 'Text'),'FontWeight', 'Normal');
+%     set(gcf,'defaultAxesFontSize',15)
+%     set(gca,'FontSize', 15);
+% 
+% 
+% pos(1) = pos(1)+0.32;
+% myFig = figure('numbertitle','off','name','MLMV beam pattern',...
+%        'Units','normal','Position',pos);
+% 
+% imagesc(ph(1:180),f, bpdB_SDSS(:,1:180));
+% axis tight
+% %set(gca,'XTick',[0 45 90 135 180]);
+% %view([25,50]);
+% xlabel('Incident angle \phi in °');
+% ylabel('f in Hz');
+% zlabel('Magnitude');
+% title('Directivity response of the array');
+% set(gca, 'xdir', 'reverse');
+% set(gca, 'ydir', 'normal');
+% %zlim([-dBmax 0])
+% set(gcf,'color','w');
+% grid on
+% colorbar 
+% %colormap jet
+%     set(findall(myFig, 'Type', 'Text'),'FontWeight', 'Normal');
+%     set(gcf,'defaultAxesFontSize',15)
+%     set(gca,'FontSize', 15);
 %%
 Alg = 1;
 Monte=25;
@@ -211,35 +220,43 @@ K =10;
 yStack = zeros(L,K);
 y_up_stack = zeros(K,1);
 
+
 for iSNR = 1:2
     idxE = 1;
     for iSIR = SIR
         sigma_i = sqrt(0.5*10^(-iSIR/10));
         for iMonte = 1:Monte
             % Simulate a chirp signal with a 500 Hz bandwidth.
-            Source1 = sigma_i*chirp(t,5000,0.5,5000);%0.5*randn(1,8001);%
+            % Source1 = sigma_i*chirp(t,5000,0.5,5000);%0.5*randn(1,8001);%
+            
+            Nx=(N/2)-10; % the number of tones
+            mindex=0:Nx;
+            phi=pi*mindex.*mindex/Nx;
+            k0 = 5;
+            omega=2*pi*(k0*ones(Nx+1,1)+mindex')*fs/N;
+            Source1=sum(sin(omega*t+phi'*ones(1,length(t))),1)/Nx;
+
             Source2 =  sigma_i*randn(1,8001);%0.5*chirp(t,2000,0.5,2000);%
-
-
+            
             Source3 = zeros(size(Source1));
-            Source3(6001:6500) = 10*ones(500,1);
-
+            Source3(6001) = 10;
+            Source3(6500) = 10;
+            % Source3 = Source3 + chirp(t,fTest-2000,0.5,fTest-2000);
+            
             Source1 = bandpass(Source1,[fl fu],fs);
             Source2 = bandpass(Source2,[fl fu],fs);
-            Source3 = bandpass(Source3,[fl fu],fs)+chirp(t,fTest-2000,0.5,fTest-2000);
-
+            Source3 = bandpass(Source3,[fl fu],fs); 
 
             signal1 = collector(Source1.' ,incidentAngle1);
-            signal2 = collector(Source2.' ,incidentAngle2);
-            signal3 = collector(Source3.' ,incidentAngle3);
-
-            signal3(:,1) = filtfilt(h1,1,Source3);
-            signal3(:,2) = filtfilt(h2,1,Source3);
-            signal3(:,3) = filtfilt(h3,1,Source3);
-            signal3(:,4) = filtfilt(h4,1,Source3);
-            signal3(:,5) = filtfilt(h5,1,Source3);
-            signal3(:,6) = filtfilt(h6,1,Source3);
-            signal3(:,7) = filtfilt(h7,1,Source3);
+            signal2 =  collector(Source2.' ,incidentAngle2);
+            signal3 = zeros(length(Source3),M);
+            
+            % Room Impulse Response
+            for iMic=1:M  
+                signal1(:,iMic) = filter (H1(iMic,:),1,Source1); % SOI
+                signal2(:,iMic) = filter (H2(iMic,:),1,Source2); % SOI
+                signal3(:,iMic) = filter (H3(iMic,:),1,Source3); % SOI
+            end
             signal = signal1 + signal2 + signal3;
 
             SNR = iSNR*10;
@@ -250,16 +267,11 @@ for iSNR = 1:2
             %       'OverlapPercent',99,'Leakage',0.85)
 
 
-            % MATLAB toolbox for GSC---------------------------------------------------
-            gscbeamformer = phased.GSCBeamformer('SensorArray',array, ...
-                'PropagationSpeed',c,'SampleRate',fs,'DirectionSource','Input port', ...
-                'FilterLength',L,'LMSStepSize',alpha1);
 
             ygsc = gscbeamformer(recsignal,[90;0]);
 
 
-    %%
-
+            %---% 
             out_ABSS = zeros(length(recsignal(:,1)),1);
             out_FBSS = zeros(length(recsignal(:,1)),1);
             yFill_up = zeros(L,1);
@@ -270,6 +282,7 @@ for iSNR = 1:2
             h_l((L-1)/2+1) = 1;
             gOld = 0;
             PkOld = 0.1;
+            Pk0Old = 0.1;
             Q = 0.01*eye(L,L);
             b = yFill_low;
             for iLoop = 1:length(recsignal(:,1))- N + 1
@@ -294,6 +307,8 @@ for iSNR = 1:2
                                Pk = sum(yFill_low.*yFill_low)+0.00001;
                                %Pk = 0.95*Pk + 0.05*PkOld;
                                %PkOld = Pk;
+                               Pk0 = 0.9*Pk0 + 0.1*Pk0Old;
+                               Pk0Old = Pk0;
 
                                g = y_out*yFill_low; 
                                %g = 0.95*g + 0.05*gOld;
@@ -329,14 +344,13 @@ for iSNR = 1:2
                 %                    end
                 %                end
 
-
                                h_l = h_l + delta;
                    end          
             end
 
 
-    %%
-            idx = 5800:7000;
+            %---% 
+            idx = 500:7500;
             E1(idxE,iSNR) = E1(idxE,iSNR) + mean((ygsc(idx) - signal3(idx,4)).^2)
             E2(idxE,iSNR) = E2(idxE,iSNR) + mean((out_ABSS(idx) - signal3(idx,4)).^2)
             E3(idxE,iSNR) = E3(idxE,iSNR) + mean((out_FBSS(idx) - signal3(idx,4)).^2);

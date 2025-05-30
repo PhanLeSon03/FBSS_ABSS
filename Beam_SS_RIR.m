@@ -67,10 +67,10 @@ phi=pi*mindex.*mindex/Nx;
 k0 = 5;
 omega=2*pi*(k0*ones(Nx+1,1)+mindex')*fs/N;
 Source1=sum(sin(omega*t+phi'*ones(1,length(t))),1)/Nx;
-Source1 = 0.5*Source1/max(Source1);
+Source1 = 0.5*Source1/max(Source1); % multi tone
 
 
-Source2 =  0.5*chirp(t,2000,1,2000);%rand(1,16001);%
+Source2 =  0.5*chirp(t,2000,1,2000);% single tone
 Source3 = zeros(size(Source1));
 Source3(6001) = 1;Source3(6500) = 1;
 
@@ -137,28 +137,28 @@ plot(t*1000,ygsc,'r')
 xlabel('Time (ms)')
 %ylabel('Amplitude')
 legend('Received signal','SOI+Reverberation','GSC','Location','Best')
-
+axis tight
 grid on
-    set(gcf,'color','w');
-    set(gcf,'defaultAxesFontSize',15)
-    set(gca,'FontSize', 15);
+set(gcf,'color','w');
+set(gcf,'defaultAxesFontSize',15)
+set(gca,'FontSize', 15);
 
 pos(2) = pos(2)+0.4;
 figure('numbertitle','on','name','Wave signales','Units','normal',...
        'Position',pos);
-idx = 5800:7200;
+idx = 6000:6800;
 plot(t(idx)*1000,recsignal(idx,4))
 hold on
 plot(t(idx)*1000,signal3(idx,4),'g','Linewidth',2) % Source3(idx)
 plot(t(idx)*1000,ygsc(idx),'r')
 xlabel('Time (ms)')
-
+axis tight
 legend('Received signal','SOI+Reverberation','GSC','Location','Best')
 
 grid on
-    set(gcf,'color','w');
-    set(gcf,'defaultAxesFontSize',15)
-    set(gca,'FontSize', 15);
+set(gcf,'color','w');
+set(gcf,'defaultAxesFontSize',15)
+set(gca,'FontSize', 15);
 % % %--------------------------------------------------------------------------
 
 % Synchronize signal toward look direction in FFT domain
@@ -309,6 +309,7 @@ yFill_low = zeros(L,1);
 h_u = zeros(L,1);
 h_u((L-1)/2+1) = 1;
 h_l = zeros(L,1);
+Pk0Old = 0.0;
 for iLoop = 1:length(recsignal(:,1))- N + 1
    y_beam1 = sum(sum(Hup.*recsignal(iLoop:iLoop+N-1,:)',2),1);
    yFill_up = circshift(yFill_up,1);
@@ -359,6 +360,7 @@ for iLoop = 1:length(recsignal(:,1))- N + 1
    % update filter coefficient
    Pk0 = sum(yFill_up.*yFill_up);
    Pk = sum(yFill_low.*yFill_low);
+   Pk0 = 0.9*Pk0 + 0.1*Pk0Old;
    mu = alpha2/Pk0;
    delta = mu*y_out*yFill_low;
 %    if delta > 0.1
@@ -391,7 +393,7 @@ grid on
 pos(2) = pos(2) +0.3;
 figure('numbertitle','on','name','Wave signals','Units','normal',...
        'Position',pos);
-idx = 5800:7200;
+idx = 6000:6800;
 plot(t(idx)*1000,recsignal(idx,4))
 hold on
 plot(t(idx)*1000,signal3(idx,4),'g','Linewidth',2) % Source3(idx)/20
@@ -399,31 +401,31 @@ plot(t(idx)*1000,out_ABSS(idx),'r')
 xlabel('Time (ms)')
 
 legend('Received signal','SOI+Reverberation','ABSS','Location','Best')
-
+axis tight
 grid on
-    set(gcf,'color','w');
-    set(gcf,'defaultAxesFontSize',15)
-    set(gca,'FontSize', 15);
+set(gcf,'color','w');
+set(gcf,'defaultAxesFontSize',15)
+set(gca,'FontSize', 15);
 
 
 pos(2) = pos(2) - 0.3;
 figure('numbertitle','on','name','Wave signales','Units','normal',...
        'Position',pos);
 
-idx = 5000:8000;
+idx = 6000:6800;
 
 plot(t(idx)*1000,signal3(idx,4),'g','Linewidth',2) % Source3(idx)/20 
 hold on
-plot(t(idx)*1000,out_FBSS(idx),'b') % ygsc(idx)
+plot(t(idx)*1000,ygsc(idx),'b') % ygsc(idx)
 plot(t(idx)*1000,out_ABSS(idx),'r')
 xlabel('Time (ms)')
 
-legend('SOI+Reverberation','FBSS','ABSS','Location','Best')
+legend('SOI+Reverberation','GSC','ABSS','Location','Best')
 
 set(gcf,'color','w'); 
 set(gcf,'defaultAxesFontSize',15)
 set(gca,'FontSize', 15);
-
+axis tight
 grid on
 %%
 e1 = mean((ygsc(idx) - signal3(idx,4)).^2);
@@ -453,67 +455,67 @@ e2 = mean((out_ABSS(idx) - signal3(idx,4)).^2);
 % xlabel('f (Hz)');
 % ylabel('DF (dB)');
 
-%%
-pos = [0.045 0.45 0.3 0.35];
-figure('numbertitle','on','name','Upper path''s beam pattern',...
-       'Units','normal','Position',pos);
-ph = 180/pi*p; 
-  
-imagesc(ph(1:180),fStep*(klow:kup),bpdB_SD((klow+1:kup+1),1:180));
-axis tight
-%set(gca,'XTick',[0 45 90 135 180]);
-%view([25,50]);
-xlabel('Incident angle \phi in °');
-ylabel('f in Hz');
-zlabel('Magnitude');
-title('Array response at the upper path (preserving the main-lobe)');
-set(gca, 'xdir', 'reverse');
-set(gca, 'ydir', 'normal');
-%zlim([-dBmax 0])
-set(gcf,'color','w');
-grid on
-colorbar 
-%colormap jet
-
-pos(1) = pos(1)+0.32;
-figure('numbertitle','on','name','Lower path''s beam pattern',...
-       'Units','normal','Position',pos);
-  
-imagesc(ph(1:180),fStep*(klow:kup), bpdB_SDSS((klow+1:kup+1),1:180));
-axis tight
-%set(gca,'XTick',[0 45 90 135 180]);
-%view([25,50]);
-xlabel('Incident angle \phi in °');
-ylabel('f in Hz');
-zlabel('Magnitude');
-title('Array response at the lower path (suppressing the main-lobe)');
-set(gca, 'xdir', 'reverse');
-set(gca, 'ydir', 'normal');
-%zlim([-dBmax 0])
-set(gcf,'color','w');
-grid on
-colorbar 
-%colormap jet
-
-pos(1) = pos(1)+0.32;
-figure('numbertitle','on','name','Lower path''s beam pattern',...
-       'Units','normal','Position',pos);
-  
-imagesc(ph(1:180),fStep*(klow:kup), bpdB_SDSS_C((klow+1:kup+1),1:180));
-axis tight
-%set(gca,'XTick',[0 45 90 135 180]);
-%view([25,50]);
-xlabel('Incident angle \phi in °');
-ylabel('f in Hz');
-zlabel('Magnitude');
-title('Array response at the lower path (suppressing the main-lobe)');
-set(gca, 'xdir', 'reverse');
-set(gca, 'ydir', 'normal');
-%zlim([-dBmax 0])
-set(gcf,'color','w');
-grid on
-colorbar 
-%colormap jet
+% %%
+% pos = [0.045 0.45 0.3 0.35];
+% figure('numbertitle','on','name','Upper path''s beam pattern',...
+%        'Units','normal','Position',pos);
+% ph = 180/pi*p; 
+% 
+% imagesc(ph(1:180),fStep*(klow:kup),bpdB_SD((klow+1:kup+1),1:180));
+% axis tight
+% %set(gca,'XTick',[0 45 90 135 180]);
+% %view([25,50]);
+% xlabel('Incident angle \phi in °');
+% ylabel('f in Hz');
+% zlabel('Magnitude');
+% title('Array response at the upper path (preserving the main-lobe)');
+% set(gca, 'xdir', 'reverse');
+% set(gca, 'ydir', 'normal');
+% %zlim([-dBmax 0])
+% set(gcf,'color','w');
+% grid on
+% colorbar 
+% %colormap jet
+% 
+% pos(1) = pos(1)+0.32;
+% figure('numbertitle','on','name','Lower path''s beam pattern',...
+%        'Units','normal','Position',pos);
+% 
+% imagesc(ph(1:180),fStep*(klow:kup), bpdB_SDSS((klow+1:kup+1),1:180));
+% axis tight
+% %set(gca,'XTick',[0 45 90 135 180]);
+% %view([25,50]);
+% xlabel('Incident angle \phi in °');
+% ylabel('f in Hz');
+% zlabel('Magnitude');
+% title('Array response at the lower path (suppressing the main-lobe)');
+% set(gca, 'xdir', 'reverse');
+% set(gca, 'ydir', 'normal');
+% %zlim([-dBmax 0])
+% set(gcf,'color','w');
+% grid on
+% colorbar 
+% %colormap jet
+% 
+% pos(1) = pos(1)+0.32;
+% figure('numbertitle','on','name','Lower path''s beam pattern',...
+%        'Units','normal','Position',pos);
+% 
+% imagesc(ph(1:180),fStep*(klow:kup), bpdB_SDSS_C((klow+1:kup+1),1:180));
+% axis tight
+% %set(gca,'XTick',[0 45 90 135 180]);
+% %view([25,50]);
+% xlabel('Incident angle \phi in °');
+% ylabel('f in Hz');
+% zlabel('Magnitude');
+% title('Array response at the lower path (suppressing the main-lobe)');
+% set(gca, 'xdir', 'reverse');
+% set(gca, 'ydir', 'normal');
+% %zlim([-dBmax 0])
+% set(gcf,'color','w');
+% grid on
+% colorbar 
+% %colormap jet
 
 
 

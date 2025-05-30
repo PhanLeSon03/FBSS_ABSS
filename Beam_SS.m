@@ -312,6 +312,7 @@ yFill_low = zeros(L,1);
 h_u = zeros(L,1);
 h_u((L-1)/2+1) = 1;
 h_l = zeros(L,1);
+Pk0Old = 0.0;
 for iLoop = 1:length(recsignal(:,1))- N + 1
    y_beam1 = sum(sum(Hup.*recsignal(iLoop:iLoop+N-1,:)',2),1);
    yFill_up = circshift(yFill_up,1);
@@ -331,6 +332,8 @@ for iLoop = 1:length(recsignal(:,1))- N + 1
    % update filter coefficient
    Pk0 = sum(yFill_up.*yFill_up);
    Pk = sum(yFill_low.*yFill_low);
+   Pk0 = 0.9*Pk0 + 0.1*Pk0Old;
+   Pk0Old = Pk0;
    mu = alpha2/Pk0;
    delta = mu*y_out*yFill_low;
 %    if delta > 0.1
@@ -338,7 +341,7 @@ for iLoop = 1:length(recsignal(:,1))- N + 1
 %    elseif delta < -0.1
 %        delta = -0.1;
 %    end
-   h_l = h_l + delta;
+   h_l = h_l+ delta;
    
 end
 

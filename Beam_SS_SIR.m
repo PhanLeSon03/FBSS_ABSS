@@ -19,8 +19,8 @@ alpha1 = 0.01;
 alpha2 = 0.01;
 t = 0:1/fs:0.5;
 
-incidentAngle1 = [20 ;0]; %10° azimuth and 90° elevation, 20 = 90 -70
-incidentAngle2 = [-60 ;0]; % -60 = 90 -150
+incidentAngle1 = [0 ;0]; %10° azimuth and 90° elevation, 20 = 90 -70
+incidentAngle2 = [-90 ;0]; % -60 = 90 -150
 incidentAngle3 = [90 ;0]; % source of interset
 
 
@@ -197,18 +197,25 @@ for iSNR = 1:2
         sigma_i = sqrt(0.5*10^(-iSIR/10));
         for iMonte = 1:Monte
             % Simulate a chirp signal with a 500 Hz bandwidth.
-            Source1 = sigma_i*chirp(t,5000,0.5,5000);%0.5*randn(1,8001);%
+            %Source1 = sigma_i*chirp(t,5000,0.5,5000);%0.5*randn(1,8001);%
+            
+            Nx=(N/2)-10; % the number of tones
+            mindex=0:Nx;
+            phi=pi*mindex.*mindex/Nx;
+            k0 = 5;
+            omega=2*pi*(k0*ones(Nx+1,1)+mindex')*fs/N;
+            Source1=sum(sin(omega*t+phi'*ones(1,length(t))),1)/Nx;
+
             Source2 =  sigma_i*randn(1,8001);%0.5*chirp(t,2000,0.5,2000);%
-
-
-            Source3 = chirp(t,fTest-2000,0.5,fTest-2000);
-            Source3(1:6000)=0;
-            Source3(6501:end)=0;
-            Source3(6001:6500) = 10*ones(500,1);
+            
+            Source3 = zeros(size(Source1));
+            Source3(6001) = 10;
+            Source3(6500) = 10;
+            Source3 = Source3 + chirp(t,fTest-2000,0.5,fTest-2000);
 
             Source1 = bandpass(Source1,[fl fu],fs);
             Source2 = bandpass(Source2,[fl fu],fs);
-            Source3 = bandpass(Source3,[fl fu],fs)+chirp(t,fTest-2000,0.5,fTest-2000);
+            Source3 = bandpass(Source3,[fl fu],fs);
 
 
             signal1 = collector(Source1.' ,incidentAngle1);
@@ -233,8 +240,6 @@ for iSNR = 1:2
             ygsc = gscbeamformer(recsignal,[90;0]);
 
 
-    %%
-
             out_ABSS = zeros(length(recsignal(:,1)),1);
             out_FBSS = zeros(length(recsignal(:,1)),1);
             yFill_up = zeros(L,1);
@@ -245,6 +250,7 @@ for iSNR = 1:2
             h_l((L-1)/2+1) = 1;
             gOld = 0;
             PkOld = 0.1;
+            Pk0Old = 0.1;
             Q = 0.01*eye(L,L);
             b = yFill_low;
             for iLoop = 1:length(recsignal(:,1))- N + 1
@@ -269,6 +275,8 @@ for iSNR = 1:2
                                Pk = sum(yFill_low.*yFill_low)+0.00001;
                                %Pk = 0.95*Pk + 0.05*PkOld;
                                %PkOld = Pk;
+                               Pk0 = 0.9*Pk0 + 0.1*Pk0Old;
+                               Pk0Old = Pk0;
 
                                g = y_out*yFill_low; 
                                %g = 0.95*g + 0.05*gOld;
@@ -310,7 +318,7 @@ for iSNR = 1:2
             end
 
 
-    %%
+    
             idx = 5800:7000;
             E1(idxE,iSNR) = E1(idxE,iSNR) + mean((ygsc(idx) - signal3(idx,4)).^2)
             E2(idxE,iSNR) = E2(idxE,iSNR) + mean((out_ABSS(idx) - signal3(idx,4)).^2)
