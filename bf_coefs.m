@@ -74,7 +74,7 @@ for l = 1:nf
                                 % (isotropic noise field, spherical mic radiation pattern)
        Amue = A + mue*eye(size(A));   % regularization
        B = (Amue^-1)*C;
-       Lambda = (C'*B)\resp(:); % Lagrange multiplicator
+       Lambda = pinv(C'*B) * resp(:); % Lagrange multiplicator
        W(:,l) = B*Lambda;       % optimum coefficient vector at given frequency
    else
        gain = -30;              % Initial value 

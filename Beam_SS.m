@@ -23,7 +23,7 @@ incidentAngle2 = [-60 ;0]; % -60 = 90 -150
 incidentAngle3 = [90 ;0]; % source of interset
 
 % Simulate a chirp signal with a 500 Hz bandwidth.
-Source1 = chirp(t,5000,0.5,5000);%0.5*randn(1,8001);%
+Source1 = chirp(t,fl,0.5,fu);%0.5*randn(1,8001);%
 % 
 % Nx=(N/2)-10; % the number of tones
 % mindex=0:Nx;
@@ -42,12 +42,18 @@ Source3 = chirp(t,fTest-2000,0.5,fTest-2000);
 Source3(1:end)=0;
 % Source3(6501:end)=0;
 % Source3(6001:6500) = 5*ones(500,1);
-Source3(6001) = 1;Source3(6500) = 1;
+Source3(6001) = 10;Source3(6500) = 10;
 
 Source1 = bandpass(Source1,[fl fu],fs);
 Source2 = bandpass(Source2,[fl fu],fs);
 Source3 = bandpass(Source3,[fl fu],fs);
 
+idx = 6000:6501;
+sigma_s = std(Source3(idx));
+
+Source1 = sigma_s*Source1/std(Source1);
+Source2 = sigma_s*Source2/std(Source2);
+% Source3 = Source3/std(Source3);
 
 % Create an incident wave arriving at the array. Add gaussian noise to the wave.
 collector = phased.WidebandCollector('Sensor',array,'PropagationSpeed',c, ...
@@ -61,8 +67,9 @@ signal3 = collector(Source3.' ,incidentAngle3);
 
 signal = signal1 + signal2 + signal3;
 
-SNR = 30;
-noise = sqrt(10^(-SNR/10))*randn(size(signal));
+SNR = -10;
+noise = randn(size(signal));
+noise = sigma_s*sqrt(10^(-SNR/10))*noise/std(noise);
 recsignal = signal + noise;
 
 % pspectrum(recsignal(:,4),fs,'spectrogram','TimeResolution',0.1, ...
@@ -92,6 +99,7 @@ grid on
     set(gcf,'color','w');
     set(gcf,'defaultAxesFontSize',15)
     set(gca,'FontSize', 15);
+axis tight
 
 pos(2) = pos(2)+0.4;
 figure('numbertitle','off','name','Wave signales','Units','normal',...
@@ -104,9 +112,10 @@ plot(t(idx)*1000,ygsc(idx),'r')
 xlabel('Time (ms)')
 legend('Received signal','SOI','GSC','Location','Best')
 grid on
-    set(gcf,'color','w');
-    set(gcf,'defaultAxesFontSize',15)
-    set(gca,'FontSize', 15);
+set(gcf,'color','w');
+set(gcf,'defaultAxesFontSize',15)
+set(gca,'FontSize', 15);
+axis tight
 % % %--------------------------------------------------------------------------
 
 % Synchronize signal toward look direction in FFT domain
@@ -249,7 +258,7 @@ for k = klow:kup+1
         phi_desired_s = 180;
         phi_zero_s = [0 phi_zero];
     else
-      [~,locs]=findpeaks(1./R(1:length(R)/2));
+      [~,locs]=findpeaks(1./R(1:floor(length(R)/2)));
        phi_desired_s = 180;
        phi_zero_s = [0 (locs-1)];  
     end
@@ -370,9 +379,10 @@ plot(t(idx)*1000,out_ABSS(idx),'r')
 xlabel('Time (ms)')
 legend('Received signal','SOI','ABSS','Location','Best')
 grid on
-    set(gcf,'color','w');
-    set(gcf,'defaultAxesFontSize',15)
-    set(gca,'FontSize', 15);
+set(gcf,'color','w');
+set(gcf,'defaultAxesFontSize',15)
+set(gca,'FontSize', 15);
+axis tight
 
 pos(2) = pos(2) - 0.3;
 figure('numbertitle','off','name','Wave signales','Units','normal',...
@@ -387,11 +397,15 @@ legend('SOI','GSC','ABSS','Location','Best')
     set(gcf,'color','w'); 
     set(gcf,'defaultAxesFontSize',15)
     set(gca,'FontSize', 15);
-
+axis tight
 grid on
 %%
 e1 = mean((ygsc(idx) - signal3(idx,4)).^2)
 e2 = mean((out_ABSS(idx) - signal3(idx,4)).^2)
+
+ SOI_std = std(signal3(idx,4));
+ oSINR_GSC =  20*log10(SOI_std /(eps +std(ygsc(idx) - signal3(idx,4) )))
+ oSINR_ABSS =  20*log10(SOI_std /(eps +std(out_ABSS(idx) - signal3(idx,4))))
 %%
 % pos = [0.055 0.04 0.4 0.38];
 % figure('numbertitle','off','name','WNG',...

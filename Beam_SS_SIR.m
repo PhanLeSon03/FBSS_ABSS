@@ -3,7 +3,7 @@ clc
 close all
 c = 340.0;
 fs = 16000;
-fl = 500;                    % lower cutoff frequency
+fl = 1000;                    % lower cutoff frequency
 fu = 6000;                   % higher cutoff frequency
 fTest = 4000;
 lam = c/fu;
@@ -12,7 +12,6 @@ N = 512;                    % number of samples in one frame
 M = 7;                      % number of microphones
 L = 511;
 xMics = (-(M-1)/2:(M-1)/2)*dmics;
-%xMics = (0:M-1)*dmics;
 transducer = phased.OmnidirectionalMicrophoneElement; %('FrequencyRange',[20 20000])
 array = phased.ULA('Element',transducer,'NumElements',M,'ElementSpacing',dmics);
 alpha1 = 0.01;
@@ -89,7 +88,7 @@ for k = klow:kup+1
         phi_desired_s = 180;
         phi_zero_s = [0 phi_zero];
     else
-      [~,locs]=findpeaks(1./R(1:length(R)/2));
+       [~, locs] = findpeaks(1 ./ R(1:floor(length(R)/2)));
        phi_desired_s = 180;
        phi_zero_s = [0 (locs-1)];  
     end
@@ -199,33 +198,42 @@ for iSNR = 1:2
             % Simulate a chirp signal with a 500 Hz bandwidth.
             %Source1 = sigma_i*chirp(t,5000,0.5,5000);%0.5*randn(1,8001);%
             
+
+            Source1=chirp(t,fl,0.5,fu);
+
+            Source2 =  randn(1,8001);%0.5*chirp(t,2000,0.5,2000);%
+            
+
             Nx=(N/2)-10; % the number of tones
             mindex=0:Nx;
             phi=pi*mindex.*mindex/Nx;
             k0 = 5;
             omega=2*pi*(k0*ones(Nx+1,1)+mindex')*fs/N;
-            Source1=sum(sin(omega*t+phi'*ones(1,length(t))),1)/Nx;
-
-            Source2 =  sigma_i*randn(1,8001);%0.5*chirp(t,2000,0.5,2000);%
-            
-            Source3 = zeros(size(Source1));
-            Source3(6001) = 10;
-            Source3(6500) = 10;
-            Source3 = Source3 + chirp(t,fTest-2000,0.5,fTest-2000);
+            Source3 = sum(sin(omega*t+phi'*ones(1,length(t))),1)/Nx; % multi-tone signal
+            Source3(6001) = Source3(6001) + 10;
+            Source3(6500) = Source3(6500)+ 10;
 
             Source1 = bandpass(Source1,[fl fu],fs);
             Source2 = bandpass(Source2,[fl fu],fs);
             Source3 = bandpass(Source3,[fl fu],fs);
 
 
+            Source1 = sigma_i*Source1/std(Source1);
+            Source2 = sigma_i*Source2/std(Source2);
+            Source3 = Source3/std(Source3);
+
             signal1 = collector(Source1.' ,incidentAngle1);
             signal2 = collector(Source2.' ,incidentAngle2);
             signal3 = collector(Source3.' ,incidentAngle3);
 
+
+
             signal = signal1 + signal2 + signal3;
 
-            SNR = iSNR*10;
-            noise = sqrt(10^(-SNR/10))*randn(size(signal));
+            SNR = -(iSNR-1)*10;
+            noise = randn(size(signal));
+            noise = sqrt(10^(-SNR/10))*noise/std(noise);
+
             recsignal = signal + noise;
 
             % pspectrum(recsignal(:,4),fs,'spectrogram','TimeResolution',0.1, ...
@@ -254,11 +262,12 @@ for iSNR = 1:2
             Q = 0.01*eye(L,L);
             b = yFill_low;
             for iLoop = 1:length(recsignal(:,1))- N + 1
+               
                y_beam1 = sum(sum(Hup.*recsignal(iLoop:iLoop+N-1,:)',2),1);
                yFill_up = circshift(yFill_up,1);
                yFill_up(1) = y_beam1;
                y_up = sum(h_u.*yFill_up);
-
+               
                y_beam2 = sum(sum(Hlow.*recsignal(iLoop:iLoop+N-1,:)',2),1);
                yFill_low = circshift(yFill_low,1);
                yFill_low(1) = y_beam2;
@@ -284,6 +293,7 @@ for iSNR = 1:2
 
                                mu = alpha2/Pk0;
                                delta = mu*g;
+
                                
 %                                for iD = i:L
 %                                    if delta(iD) > 0.5
@@ -292,7 +302,7 @@ for iSNR = 1:2
 %                                        delta(iD) = -0.5;
 %                                    end
 %                                end
-                               h_l = h_l*(1-0.2*mu) + delta;
+                               h_l = h_l + delta;
                    else
                                yStack(:,mod(iLoop,K)+1) = yFill_low; 
                                y_up_stack(mod(iLoop,K)+1) = y_up;
@@ -318,11 +328,11 @@ for iSNR = 1:2
             end
 
 
-    
-            idx = 5800:7000;
-            E1(idxE,iSNR) = E1(idxE,iSNR) + mean((ygsc(idx) - signal3(idx,4)).^2)
-            E2(idxE,iSNR) = E2(idxE,iSNR) + mean((out_ABSS(idx) - signal3(idx,4)).^2)
-            E3(idxE,iSNR) = E3(idxE,iSNR) + mean((out_FBSS(idx) - signal3(idx,4)).^2);
+            idx = 5800:6800;
+            SOI_std = std(signal3(idx,4));
+            E1(idxE,iSNR) = E1(idxE,iSNR) + 20*log10(SOI_std /(eps +std(ygsc(idx) - signal3(idx,4) )))
+            E2(idxE,iSNR) = E2(idxE,iSNR) + 20*log10(SOI_std /(eps +std(out_ABSS(idx) - signal3(idx,4))))
+            E3(idxE,iSNR) = E3(idxE,iSNR) + 20*log10(SOI_std /(eps +std(out_FBSS(idx) - signal3(idx,4))));
         end
         E1(idxE,iSNR) = E1(idxE,iSNR)/Monte;
         E2(idxE,iSNR) = E2(idxE,iSNR)/Monte;
@@ -345,14 +355,35 @@ plot(SIR,E2(:,2),'-dg','Linewidth',1.5)
 plot(SIR,E3(:,2),'-dr','Linewidth',1.5)
 
 xlabel('SIR (dB)')
-ylabel('SE')
+ylabel('oSINR (dB)')
 
-legend('GSC(SNR=10 dB)','ABSS(SNR=10 dB)','FBSS(SNR=10 dB)', 'GSC(SNR=20 dB)','ABSS(SNR=20 dB)','FBSS(SNR=20 dB)','Location','Best')
+legend('GSC(SNR=0 dB)','ABSS(SNR=0 dB)','FBSS(SNR=0 dB)', 'GSC(SNR=-10 dB)','ABSS(SNR=-10 dB)','FBSS(SNR=-10 dB)','Location','Best')
 set(gcf,'color','w');
 grid on
 set(gcf,'defaultAxesFontSize',15)
 set(gca,'FontSize', 15);
 
+
+pos(1) = pos(1) + 0.1;
+figure('numbertitle','off','name','oSINR','Units','normal',...
+       'Position',pos);
+
+plot(SIR,E1(:,1),'-sb','Linewidth',1.5)
+hold on
+plot(SIR,E2(:,1),'-sg','Linewidth',1.5)
+
+plot(SIR,E1(:,2),'-db','Linewidth',1.5)
+plot(SIR,E2(:,2),'-dg','Linewidth',1.5)
+
+
+xlabel('SIR (dB)')
+ylabel('oSINR (dB)')
+
+legend('GSC(SNR=0 dB)','ABSS(SNR=0 dB)', 'GSC(SNR=-10 dB)','ABSS(SNR=-10 dB)', 'Location','Best')
+set(gcf,'color','w');
+grid on
+set(gcf,'defaultAxesFontSize',15)
+set(gca,'FontSize', 15);
 
 
 

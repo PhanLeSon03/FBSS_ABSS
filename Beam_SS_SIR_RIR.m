@@ -226,29 +226,33 @@ for iSNR = 1:2
     for iSIR = SIR
         sigma_i = sqrt(0.5*10^(-iSIR/10));
         for iMonte = 1:Monte
-            % Simulate a chirp signal with a 500 Hz bandwidth.
-            % Source1 = sigma_i*chirp(t,5000,0.5,5000);%0.5*randn(1,8001);%
+           
             
+            Source1=chirp(t,fl,0.5,fu);
+
+            Source2 =  randn(1,8001);%0.5*chirp(t,2000,0.5,2000);%
+            
+
             Nx=(N/2)-10; % the number of tones
             mindex=0:Nx;
             phi=pi*mindex.*mindex/Nx;
             k0 = 5;
             omega=2*pi*(k0*ones(Nx+1,1)+mindex')*fs/N;
-            Source1=sum(sin(omega*t+phi'*ones(1,length(t))),1)/Nx;
+            Source3 = sum(sin(omega*t+phi'*ones(1,length(t))),1)/Nx; % multi-tone signal
+            Source3(6001) = Source3(6001) + 10;
+            Source3(6500) = Source3(6500)+ 10;
 
-            Source2 =  sigma_i*randn(1,8001);%0.5*chirp(t,2000,0.5,2000);%
-            
-            Source3 = zeros(size(Source1));
-            Source3(6001) = 10;
-            Source3(6500) = 10;
-            % Source3 = Source3 + chirp(t,fTest-2000,0.5,fTest-2000);
-            
             Source1 = bandpass(Source1,[fl fu],fs);
             Source2 = bandpass(Source2,[fl fu],fs);
-            Source3 = bandpass(Source3,[fl fu],fs); 
+            Source3 = bandpass(Source3,[fl fu],fs);
 
-            signal1 = collector(Source1.' ,incidentAngle1);
-            signal2 =  collector(Source2.' ,incidentAngle2);
+
+            Source1 = sigma_i*Source1/std(Source1);
+            Source2 = sigma_i*Source2/std(Source2);
+            Source3 = Source3/std(Source3);
+
+            signal1 = zeros(length(Source1),M);%collector(Source1.' ,incidentAngle1);
+            signal2 =  zeros(length(Source2),M);%collector(Source2.' ,incidentAngle2);
             signal3 = zeros(length(Source3),M);
             
             % Room Impulse Response
@@ -259,13 +263,12 @@ for iSNR = 1:2
             end
             signal = signal1 + signal2 + signal3;
 
-            SNR = iSNR*10;
+            SNR = -(iSNR-1)*10;
             noise = sqrt(10^(-SNR/10))*randn(size(signal));
             recsignal = signal + noise;
 
             % pspectrum(recsignal(:,4),fs,'spectrogram','TimeResolution',0.1, ...
             %       'OverlapPercent',99,'Leakage',0.85)
-
 
 
             ygsc = gscbeamformer(recsignal,[90;0]);
@@ -324,7 +327,7 @@ for iSNR = 1:2
 %                                        delta(iD) = -0.5;
 %                                    end
 %                                end
-                               h_l = h_l*(1-0.2*mu) + delta;
+                               h_l = h_l + delta;
                    else
                                yStack(:,mod(iLoop,K)+1) = yFill_low; 
                                y_up_stack(mod(iLoop,K)+1) = y_up;
@@ -350,10 +353,11 @@ for iSNR = 1:2
 
 
             %---% 
-            idx = 500:7500;
-            E1(idxE,iSNR) = E1(idxE,iSNR) + mean((ygsc(idx) - signal3(idx,4)).^2)
-            E2(idxE,iSNR) = E2(idxE,iSNR) + mean((out_ABSS(idx) - signal3(idx,4)).^2)
-            E3(idxE,iSNR) = E3(idxE,iSNR) + mean((out_FBSS(idx) - signal3(idx,4)).^2);
+            idx = 5800:6800;
+            SOI_std = std(signal3(idx,4));
+            E1(idxE,iSNR) = E1(idxE,iSNR) + 20*log10(SOI_std /(eps +std(ygsc(idx) - signal3(idx,4) )))
+            E2(idxE,iSNR) = E2(idxE,iSNR) + 20*log10(SOI_std /(eps +std(out_ABSS(idx) - signal3(idx,4))))
+            E3(idxE,iSNR) = E3(idxE,iSNR) + 20*log10(SOI_std /(eps +std(out_FBSS(idx) - signal3(idx,4))));
         end
         E1(idxE,iSNR) = E1(idxE,iSNR)/Monte;
         E2(idxE,iSNR) = E2(idxE,iSNR)/Monte;
@@ -363,22 +367,22 @@ for iSNR = 1:2
 end
 pos = [0.5 0.0 0.45 0.45];
 
-figure('numbertitle','off','name','Signal Error','Units','normal',...
+figure('numbertitle','off','name','oSINR','Units','normal',...
        'Position',pos);
 
 plot(SIR,E1(:,1),'-sb','Linewidth',1.5)
 hold on
 plot(SIR,E2(:,1),'-sg','Linewidth',1.5)
-plot(SIR,E3(:,1),'-sr','Linewidth',1.5)
+
 
 plot(SIR,E1(:,2),'-db','Linewidth',1.5)
 plot(SIR,E2(:,2),'-dg','Linewidth',1.5)
-plot(SIR,E3(:,2),'-dr','Linewidth',1.5)
+
 
 xlabel('SIR (dB)')
-ylabel('SE')
+ylabel('oSINR (dB)')
 
-legend('GSC(SNR=10 dB)','ABSS(SNR=10 dB)','FBSS(SNR=10 dB)', 'GSC(SNR=20 dB)','ABSS(SNR=20 dB)','FBSS(SNR=20 dB)','Location','Best')
+legend('GSC(SNR=0 dB)','ABSS(SNR=0 dB)', 'GSC(SNR=-10 dB)','ABSS(SNR=-10 dB)','Location','Best')
 set(gcf,'color','w');
 grid on
 set(gcf,'defaultAxesFontSize',15)

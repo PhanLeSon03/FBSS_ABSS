@@ -46,7 +46,7 @@ orientation = [0 0];            % Microphone orientation (rad)
 hp_filter = 1;              % Enable high-pass filter
 
 % diffuse noise
-diffuse_noise =0;
+diffuse_noise =1;
 
 
 
@@ -58,26 +58,30 @@ diffuse_noise =0;
 transducer = phased.OmnidirectionalMicrophoneElement; %('FrequencyRange',[20 20000])
 array = phased.ULA('Element',transducer,'NumElements',M,'ElementSpacing',dmics);
 
-t = 0:1/fs:1;
+t = 0:1/fs:0.5;
 
 
-Nx=(N/2)-2; % the number of tones
-mindex=0:Nx;
-phi=pi*mindex.*mindex/Nx;
-k0 = 5;
-omega=2*pi*(k0*ones(Nx+1,1)+mindex')*fs/N;
-Source1=sum(sin(omega*t+phi'*ones(1,length(t))),1)/Nx;
-Source1 = 0.5*Source1/max(Source1); % multi tone
+Source1=chirp(t,fl,0.5,fu);
+
+Source2 =  randn(1,8001);%0.5*chirp(t,2000,0.5,2000);%
 
 
-Source2 =  0.5*chirp(t,2000,1,2000);% single tone
-Source3 = zeros(size(Source1));
-Source3(6001) = 1;Source3(6500) = 1;
-
+Source3 = chirp(t,fTest-2000,0.5,fTest-2000);
+Source3(1:end)=0;
+% Source3(6501:end)=0;
+% Source3(6001:6500) = 5*ones(500,1);
+Source3(6001) = 100;Source3(6500) = 100;
 
 Source1 = bandpass(Source1,[fl fu],fs);
 Source2 = bandpass(Source2,[fl fu],fs);
 Source3 = bandpass(Source3,[fl fu],fs);
+
+idx = 6000:6501;
+sigma_s = std(Source3(idx));
+
+Source1 = sigma_s*Source1/std(Source1);
+Source2 = sigma_s*Source2/std(Source2);
+% Source3 = Source3/std(Source3);
 
 % Create an incident wave arriving at the array. Add gaussian noise to the wave.
 collector = phased.WidebandCollector('Sensor',array,'PropagationSpeed',c, ...
@@ -97,10 +101,10 @@ end
 signal = signal3  +  signal2 + signal1;
 
 if diffuse_noise==0
-   SNR = 10;
+   SNR = -10;
    noise = randn(size(signal));
-   noise = noise/max(max(abs(noise)));
-   noise = (10^(-SNR/20))*noise*max(max(signal3));
+   noise = noise/std(noise);
+   noise = (10^(-SNR/20))*noise;
    recsignal = signal+noise;
 
 else
@@ -108,9 +112,10 @@ else
     params.c  = c;
     params.N_phi = 360;
     signal_diff = sinf_1D(xMics,length(Source1),params)';
-    signal_diff = bandpass(signal_diff,[fl fu],fs)/max(max(abs(signal_diff)));
-    SNR1 = 10;
-    recsignal = signal + (10^(-SNR1/20))*max(max(signal3))*signal_diff;
+    signal_diff = bandpass(signal_diff,[fl fu],fs);
+    
+    SNR1 = -10;
+    recsignal = signal + (10^(-SNR1/20))*signal_diff/std(signal_diff);
 end
 
 
