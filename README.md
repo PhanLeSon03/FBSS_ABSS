@@ -1,3 +1,5 @@
+Dependent: install RIR-Generator (https://github.com/ehabets/RIR-Generator)
+
 `Beam_coeff7mics.m`: generated beamformer coefficients 
 
 `FBSS.m`: fixed beamforming with suppressed sidelobe
