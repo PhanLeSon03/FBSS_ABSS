@@ -13,7 +13,8 @@
   Implements Fixed Beamforming with Suppressed Sidelobes (FBSS).
 
 - **`Beam_SS.m`**  
-  Compares beamformed waveforms under free-field conditions with two interference sources.
+  Adaptive Beamforming with Suppressed Sidelobes (ABSS) vs GSC:Compares beamformed waveforms under free-field conditions with two interference sources.
+
 
 - **`Beam_SS_RIR.m`**  
   Compares waveforms using Room Impulse Responses (RIR) and Diffuse Field (DF) simulation.  
@@ -22,7 +23,7 @@
 
 - **`Beam_SS_SIR.m`**  
   Evaluates output SINR (oSINR) over SIR across methods:  
-  - GSC, FBSS at SNR = 0 dB and –10 dB
+  - GSC, ABSS, FBSS at SNR = 0 dB and –10 dB
 
 ### 🧪 Optional / Legacy
 - **`Beam_SS_SIR_RIR.m`** *(Not used)*  
