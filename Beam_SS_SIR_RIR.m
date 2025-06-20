@@ -59,6 +59,7 @@ gscbeamformer = phased.GSCBeamformer('SensorArray',array, ...
     'FilterLength',L,'LMSStepSize',alpha1);
 
 %% Fixed beamformings design
+% Fixed beamformings design
 fStep = fs/N;
 klow = round(fl/fStep);     % low index
 kup = round(fu/fStep);      % high index
@@ -66,13 +67,14 @@ f = fStep*(0:N/2);       % frequencies used to compute W
 nf = length(f);
 phi = pi/180*(0:1:360);
 Nphi = length(phi);
-WNG_SD = zeros(nf,1);
-WNG_SDSS = zeros(nf,1);
+WNG_up = zeros(nf,1);
+WNG_low = zeros(nf,1);
 DF_SD = zeros(nf,1);
 DF_SDSS = zeros(nf,1);
-bpdB_SD = zeros(nf,Nphi);
-bpdB_SDSS = zeros(nf,Nphi);
-W_SDSS = zeros(M,nf);
+bpdB_Up = zeros(nf,Nphi);
+bpdB_low = zeros(nf,Nphi);
+Wlow = zeros(M,nf);
+Wup = zeros(M,nf);
 
 % for main-lobe beam
 phi_desired = 0;
@@ -91,122 +93,119 @@ for i=1:length(xMics)
 end
 nguy = 0.1;
 
-Wup = ones(M,N/2+1)/M;
-for k = 2:klow
-    beta = 2*pi*(k-1)*fStep/c;
-    d0 = exp(1j*beta*xMics'*cosd(phi_desired));        % steering vector at peak of side-lobe
-    Shi = (sin(beta*Gamma)./(beta*Gamma));
-    Shi(logical(eye(size(Shi)))) = 1;       
-    Wup(:,k) =(Shi + nguy*eye(length(xMics)))^-1*d0 / (d0'*(Shi + nguy*eye(length(xMics)))^-1*d0);
-    Wup(:,k) = d0/M;
-end
-Wup(:,klow:kup+1) =  bf_coefs(xMics',theta3,phi3,fd,fStep*(klow-1:kup),mu,null);
-for k = kup+2:N/2+1
-    beta = 2*pi*(k-1)*fStep/c;
-    df = exp(1j*beta*xMics'*cosd(phi_desired));        % steering vector at peak of side-lobe
-    Wup(:,k) = df/M;
-end
 
-kx1 = round(300/fStep);%-klow+1; % index threshold for spatial aliasing
-kx2 = klow+1; % index threshold for spatial aliasing
+% for k = 2:klow
+%     beta = 2*pi*(k-1)*fStep/c;
+%     d0 = exp(1j*beta*xMics'*cosd(phi_desired));        % steering vector at peak of side-lobe
+%     Shi = (sin(beta*Gamma)./(beta*Gamma));
+%     Shi(logical(eye(size(Shi)))) = 1;       
+%     Wup(:,k) =(Shi + nguy*eye(length(xMics)))^-1*d0 / (d0'*(Shi + nguy*eye(length(xMics)))^-1*d0);
+%     % Wup(:,k) = d0/M;
+% end
+Wup(:,klow:kup+1) =  bf_coefs(xMics',theta3,phi3,fd,fStep*(klow-1:kup),mu,null);
+
+% for k = kup+2:N/2+1
+%     beta = 2*pi*(k-1)*fStep/c;
+%     df = exp(1j*beta*xMics'*cosd(phi_desired));        % steering vector at peak of side-lobe
+%     Wup(:,k) = df/M;
+% end
+
+
 for k = klow:kup+1
+    fTest = fStep*k
     [R,theta,p] = array_pattern_fft(xMics',Wup,f(k),k); 
 
-    % for side-lobe beam
-    if k < kx2
-        phi_desired_s = 180;
-        phi_zero_s = [0 phi_zero];
-    else
-      [~,locs]=findpeaks(1./R(1:length(R)/2));
-       phi_desired_s = 180;
-       phi_zero_s = [0 (locs-1)];  
-    end
-    fd_s = [1 zeros(size(phi_zero_s))];  % resonse in desired directions
-    phi3_s = [phi_desired_s, phi_zero_s];
-    theta3_s =  90*ones(1,length(phi3_s));
-    W_s = bf_coefs(xMics',theta3_s,phi3_s,fd_s,f,mu,null);
+    % for look direction finding for side-lobe beam
+   [~, locs] = findpeaks(1 ./ R(1:floor(length(R)/2)));
+   
+   [~, locs_max] = max(R(phi_zero(1) + 1:phi_zero(2) + 1));
+
+   phi_desired_s = locs_max + phi_zero(1) - 1;
+
+   
+   phi_zero_s = [0 (locs-1)];    
     
-    % scale factor
-    beta = 2*pi*f(k)/c;
-    df = exp(1j*beta*xMics'*cosd(phi_desired_s(1)));        % steering vector at peak of side-lobe
-    scale = Wup(:,k)'*df;
+   fd_s = [1 zeros(size(phi_zero_s))];  % resonse in desired directions
+   phi3_s = [phi_desired_s, phi_zero_s];
+   theta3_s =  90*ones(1,length(phi3_s));
+   W_s = bf_coefs(xMics',theta3_s,phi3_s,fd_s,f,mu,null);
+    
+   % scale factor
+   beta = 2*pi*f(k)/c;
+   df = exp(1j*beta*xMics'*cosd(phi_desired_s(1)));        % steering vector at peak of side-lobe
+   scale = Wup(:,k)'*df;
 
     D = exp(1j*beta*xMics'*cos(p));                    % steering matrix at a frequency
     bp = Wup(:,k)'*D;
-    bpdB_SD(k,:) = abs(bp);%min(20*log10(abs(bp)+eps),dBmax);
+    bpdB_Up(k,:) = abs(bp);%min(20*log10(abs(bp)+eps),dBmax);
     
-    W_SDSS(:,k) =  scale*W_s(:,k);
-    bp = W_SDSS(:,k)'*D;
-
-    bpdB_SDSS(k,:) = abs(bp);%min(20*log10(abs(bp)+eps),dBmax);
+    Wlow(:,k) = scale*W_s(:,k);
+    bp = Wlow(:,k)'*D;
+    bpdB_low(k,:) = abs(bp);%min(20*log10(abs(bp)+eps),dBmax);
     
     ds = exp(1j*beta*xMics'*cosd(phi_desired(1)));         % steering vector at look direction
-    WNG_SD(k) = 10*log10(abs(Wup(:,k)'*ds)/(Wup(:,k)'*Wup(:,k)));
-    WNG_SDSS(k) = 10*log10(1/(W_SDSS(:,k)'*W_SDSS(:,k)));
+    WNG_up(k) = 10*log10(abs(Wup(:,k)'*ds)/(Wup(:,k)'*Wup(:,k)));
+    WNG_low(k) = 10*log10(1/(Wlow(:,k)'*Wlow(:,k)));
     
     Rdif = spatio_spect_corr(beta,xMics');
     DF_SD(k) = 10*log10(abs(Wup(:,k)'*ds)/(Wup(:,k)'*Rdif*Wup(:,k)));
-    DF_SDSS(k) = 10*log10(1/(W_SDSS(:,k)'*Rdif*W_SDSS(:,k)));
+    DF_SDSS(k) = 10*log10(1/(Wlow(:,k)'*Rdif*Wlow(:,k)));
 
     
 end
 
-Wlow = W_SDSS;
-Wlow(:,1:klow) = 0; 
-Wlow(:,kup+2:end) = 0; 
 
 Hup = fftshift(irfft(Wup,[],2),2);
 Hlow = fftshift(irfft(Wlow,[],2),2);
 
 
+pos = [0.045 0.45 0.3 0.35];
+myFig = figure('numbertitle','off','name','Upper-path beam pattern',...
+       'Units','normal','Position',pos);
+ph = 180/pi*p; 
+  
+imagesc(ph(1:180),f,bpdB_Up(:,1:180));
+axis tight
+%set(gca,'XTick',[0 45 90 135 180]);
+%view([25,50]);
+xlabel('Incident angle \phi in °');
+ylabel('f in Hz');
+zlabel('Magnitude');
+title('Directivity response of the array');
+set(gca, 'xdir', 'reverse');
+set(gca, 'ydir', 'normal');
+%zlim([-dBmax 0])
+set(gcf,'color','w');
+grid on
+colorbar 
+%colormap jet
+set(findall(myFig, 'Type', 'Text'),'FontWeight', 'Normal');
+set(gcf,'defaultAxesFontSize',15)
+set(gca,'FontSize', 15);
 
-% pos = [0.045 0.45 0.3 0.35];
-% myFig = figure('numbertitle','off','name','LCMV beam pattern',...
-%        'Units','normal','Position',pos);
-% ph = 180/pi*p; 
-% 
-% imagesc(ph(1:180),f,bpdB_SD(:,1:180));
-% axis tight
-% %set(gca,'XTick',[0 45 90 135 180]);
-% %view([25,50]);
-% xlabel('Incident angle \phi in °');
-% ylabel('f in Hz');
-% zlabel('Magnitude');
-% title('Directivity response of the array');
-% set(gca, 'xdir', 'reverse');
-% set(gca, 'ydir', 'normal');
-% %zlim([-dBmax 0])
-% set(gcf,'color','w');
-% grid on
-% colorbar 
-% %colormap jet
-%     set(findall(myFig, 'Type', 'Text'),'FontWeight', 'Normal');
-%     set(gcf,'defaultAxesFontSize',15)
-%     set(gca,'FontSize', 15);
-% 
-% 
-% pos(1) = pos(1)+0.32;
-% myFig = figure('numbertitle','off','name','MLMV beam pattern',...
-%        'Units','normal','Position',pos);
-% 
-% imagesc(ph(1:180),f, bpdB_SDSS(:,1:180));
-% axis tight
-% %set(gca,'XTick',[0 45 90 135 180]);
-% %view([25,50]);
-% xlabel('Incident angle \phi in °');
-% ylabel('f in Hz');
-% zlabel('Magnitude');
-% title('Directivity response of the array');
-% set(gca, 'xdir', 'reverse');
-% set(gca, 'ydir', 'normal');
-% %zlim([-dBmax 0])
-% set(gcf,'color','w');
-% grid on
-% colorbar 
-% %colormap jet
-%     set(findall(myFig, 'Type', 'Text'),'FontWeight', 'Normal');
-%     set(gcf,'defaultAxesFontSize',15)
-%     set(gca,'FontSize', 15);
+
+pos(1) = pos(1)+0.32;
+myFig = figure('numbertitle','off','name','Lower-path beam pattern',...
+       'Units','normal','Position',pos);
+  
+imagesc(ph(1:180),f, bpdB_low(:,1:180));
+axis tight
+%set(gca,'XTick',[0 45 90 135 180]);
+%view([25,50]);
+xlabel('Incident angle \phi in °');
+ylabel('f in Hz');
+zlabel('Magnitude');
+title('Directivity response of the array');
+set(gca, 'xdir', 'reverse');
+set(gca, 'ydir', 'normal');
+%zlim([-dBmax 0])
+set(gcf,'color','w');
+grid on
+colorbar 
+%colormap jet
+set(findall(myFig, 'Type', 'Text'),'FontWeight', 'Normal');
+set(gcf,'defaultAxesFontSize',15)
+set(gca,'FontSize', 15);
 %%
 Alg = 1;
 Monte=25;
@@ -310,7 +309,7 @@ for iSNR = 1:2
                                Pk = sum(yFill_low.*yFill_low)+0.00001;
                                %Pk = 0.95*Pk + 0.05*PkOld;
                                %PkOld = Pk;
-                               Pk0 = 0.9*Pk0 + 0.1*Pk0Old;
+                               Pk0 = 0.95*Pk0 + 0.05*Pk0Old;
                                Pk0Old = Pk0;
 
                                g = y_out*yFill_low; 
@@ -353,7 +352,7 @@ for iSNR = 1:2
 
 
             %---% 
-            idx = 5800:6800;
+            idx = 800:6800;
             SOI_std = std(signal3(idx,4));
             E1(idxE,iSNR) = E1(idxE,iSNR) + 20*log10(SOI_std /(eps +std(ygsc(idx) - signal3(idx,4) )))
             E2(idxE,iSNR) = E2(idxE,iSNR) + 20*log10(SOI_std /(eps +std(out_ABSS(idx) - signal3(idx,4))))

@@ -1,13 +1,29 @@
-Dependent: install RIR-Generator (https://github.com/ehabets/RIR-Generator)
+## Dependencies
 
-`Beam_coeff7mics.m`: generated beamformer coefficients 
+- [RIR-Generator](https://github.com/ehabets/RIR-Generator) — Required for simulating Room Impulse Responses (RIR).
 
-`FBSS.m`: fixed beamforming with suppressed sidelobe
+## Script Descriptions
 
-`Beam_SS.m`: waveform comparisons, free field, two inferences
+### 🔧 Beamformer Design
+- **`Beam_coeff7mics.m`**  
+  Generates beamformer coefficients for a 7-microphone linear array.
 
-`Beam_SS_RIR.m`: waveform comparisons including RIR and DF, set `diffuse_noise` to 0/1 for select white noise or diffuse noise
+### 🧪 Core Experiments
+- **`FBSS.m`**  
+  Implements Fixed Beamforming with Suppressed Sidelobes (FBSS).
 
-`Beam_SS_SIR.m`: beamforming with suppresed sidelobe, oSINR over SIR evaluations between different approaches:GSC, FBSS at SNR = 0 and -10dB
+- **`Beam_SS.m`**  
+  Compares beamformed waveforms under free-field conditions with two interference sources.
 
-`Beam_SS_SIR_RIR.m`: beamforming with suppresed sidelobe, SIR evaluations between different approaches, room impulse response:GSC, ABSS, FBSS at SNR = 10 and 20dB
+- **`Beam_SS_RIR.m`**  
+  Compares waveforms using Room Impulse Responses (RIR) and Diffuse Field (DF) simulation.  
+  - Use `diffuse_noise = 0` for white noise  
+  - Use `diffuse_noise = 1` for diffuse noise
+
+- **`Beam_SS_SIR.m`**  
+  Evaluates output SINR (oSINR) over SIR across methods:  
+  - GSC, FBSS at SNR = 0 dB and –10 dB
+
+### 🧪 Optional / Legacy
+- **`Beam_SS_SIR_RIR.m`** *(Not used)*  
+  oSINR/SIR evaluation under RIR conditions using GSC, ABSS, and FBSS at SNR = 10 dB and 20 dB.

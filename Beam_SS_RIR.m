@@ -24,7 +24,7 @@ null = 1;                    % parameter for beam-forming
 M = 7;                      % number of microphones
 L = 511;
 alpha1 = 0.01;
-alpha2 = 0.01;
+alpha2 = (M-1)*0.01;
 xMics = (-(M-1)/2:(M-1)/2)*dmics;
 
 % Room Impulse Response
@@ -171,20 +171,22 @@ set(gca,'FontSize', 15);
 
 %% Propose method
 
+% Fixed beamformings design
+fStep = fs/N;
+klow = round(fl/fStep);     % low index
+kup = round(fu/fStep);      % high index
+f = fStep*(0:N/2);       % frequencies used to compute W
+nf = length(f);
 phi = pi/180*(0:1:360);
 Nphi = length(phi);
-WNG_SD = zeros(nf,1);
-WNG_SDSS = zeros(nf,1);
-WNG_SDSS_C = zeros(nf,1);
-
+WNG_up = zeros(nf,1);
+WNG_low = zeros(nf,1);
 DF_SD = zeros(nf,1);
 DF_SDSS = zeros(nf,1);
-DF_SDSS_C = zeros(nf,1);
-bpdB_SD = zeros(nf,Nphi);
-bpdB_SDSS = zeros(nf,Nphi);
-bpdB_SDSS_C = zeros(nf,Nphi);
-W_SDSS = zeros(M,nf);
-W_SDSS_C =  zeros(M,nf);
+bpdB_Up = zeros(nf,Nphi);
+bpdB_low = zeros(nf,Nphi);
+Wlow = zeros(M,nf);
+Wup = zeros(M,nf);
 
 % for main-lobe beam
 phi_desired = 0;
@@ -194,7 +196,8 @@ fd = [1 zeros(size(phi_zero))];  % resonse in desired directions
 
 phi3 = [phi_desired phi_zero];
 theta3 = 90*ones(1,length(fd));
-
+mu = 0.1;                    % parameter for beam-forming                     
+null = 1;                    % parameter for beam-forming
 % find optimum frequency-domain weight vector      
 Gamma = zeros(length(xMics),length(xMics));
 for i=1:length(xMics)
@@ -202,109 +205,119 @@ for i=1:length(xMics)
 end
 nguy = 0.1;
 
-Wup = zeros(M,N/2+1)/M;
 
-Wup(:,klow+1:kup+1) =  bf_coefs(xMics',theta3,phi3,fd,fStep*(klow:kup),mu,null);
+% for k = 2:klow
+%     beta = 2*pi*(k-1)*fStep/c;
+%     d0 = exp(1j*beta*xMics'*cosd(phi_desired));        % steering vector at peak of side-lobe
+%     Shi = (sin(beta*Gamma)./(beta*Gamma));
+%     Shi(logical(eye(size(Shi)))) = 1;       
+%     Wup(:,k) =(Shi + nguy*eye(length(xMics)))^-1*d0 / (d0'*(Shi + nguy*eye(length(xMics)))^-1*d0);
+%     % Wup(:,k) = d0/M;
+% end
+Wup(:,klow:kup+1) =  bf_coefs(xMics',theta3,phi3,fd,fStep*(klow-1:kup),mu,null);
+
+% for k = kup+2:N/2+1
+%     beta = 2*pi*(k-1)*fStep/c;
+%     df = exp(1j*beta*xMics'*cosd(phi_desired));        % steering vector at peak of side-lobe
+%     Wup(:,k) = df/M;
+% end
 
 
-kx1 = round(300/fStep);%-klow+1; % index threshold for spatial aliasing
-kx2 = klow+1; % index threshold for spatial aliasing
-for k = klow+1:kup+1
-    
+for k = klow:kup+1
+    fTest = fStep*k
     [R,theta,p] = array_pattern_fft(xMics',Wup,f(k),k); 
 
-    % for side-lobe beam
-    if k < kx2
-        phi_desired_s = 180;
-        phi_zero_s = [0 phi_zero];
-    else
-      [~,locs]=findpeaks(1./R(1:length(R)/2));
-       phi_desired_s = 180;
-       phi_zero_s = [0 (locs-1)];  
-    end
-    fd_s = [1 zeros(size(phi_zero_s))];  % resonse in desired directions
-    phi3_s = [phi_desired_s, phi_zero_s];
-    theta3_s =  90*ones(1,length(phi3_s));
-    W_lo = bf_coefs(xMics',theta3_s,phi3_s,fd_s,f,mu,null);
+    % for look direction finding for side-lobe beam
+   [~, locs] = findpeaks(1 ./ R(1:floor(length(R)/2)));
+   
+   [~, locs_max] = max(R(phi_zero(1) + 1:phi_zero(2) + 1));
+
+   phi_desired_s = locs_max + phi_zero(1) - 1;
+
+   
+   phi_zero_s = [0 (locs-1)];    
     
-    % scale factor
-    beta = 2*pi*f(k)/c;
-    df = exp(1j*beta*xMics'*cosd(phi_desired_s(1)));        % steering vector at peak of side-lobe
-    scale = Wup(:,k)'*df;
+   fd_s = [1 zeros(size(phi_zero_s))];  % resonse in desired directions
+   phi3_s = [phi_desired_s, phi_zero_s];
+   theta3_s =  90*ones(1,length(phi3_s));
+   W_s = bf_coefs(xMics',theta3_s,phi3_s,fd_s,f,mu,null);
+    
+   % scale factor
+   beta = 2*pi*f(k)/c;
+   df = exp(1j*beta*xMics'*cosd(phi_desired_s(1)));        % steering vector at peak of side-lobe
+   scale = Wup(:,k)'*df;
 
     D = exp(1j*beta*xMics'*cos(p));                    % steering matrix at a frequency
     bp = Wup(:,k)'*D;
-    bpdB_SD(k,:) = abs(bp);%min(20*log10(abs(bp)+eps),dBmax);
+    bpdB_Up(k,:) = abs(bp);%min(20*log10(abs(bp)+eps),dBmax);
     
-    W_SDSS(:,k) =  scale*W_lo(:,k);
-    bp = W_SDSS(:,k)'*D;
-%     W_SDSS(:,k) =  W_s(:,k)/max(abs(bp));
-%     bp = W_SDSS(:,k)'*D;
-    bpdB_SDSS(k,:) = abs(bp);%min(20*log10(abs(bp)+eps),dBmax);
+    Wlow(:,k) = scale*W_s(:,k);
+    bp = Wlow(:,k)'*D;
+    bpdB_low(k,:) = abs(bp);%min(20*log10(abs(bp)+eps),dBmax);
     
     ds = exp(1j*beta*xMics'*cosd(phi_desired(1)));         % steering vector at look direction
-    WNG_SD(k) = 10*log10(abs(Wup(:,k)'*ds)/(Wup(:,k)'*Wup(:,k)));
-    WNG_SDSS(k) = 10*log10(1/(W_SDSS(:,k)'*W_SDSS(:,k)));
+    WNG_up(k) = 10*log10(abs(Wup(:,k)'*ds)/(Wup(:,k)'*Wup(:,k)));
+    WNG_low(k) = 10*log10(1/(Wlow(:,k)'*Wlow(:,k)));
     
     Rdif = spatio_spect_corr(beta,xMics');
     DF_SD(k) = 10*log10(abs(Wup(:,k)'*ds)/(Wup(:,k)'*Rdif*Wup(:,k)));
-    DF_SDSS(k) = 10*log10(1/(W_SDSS(:,k)'*Rdif*W_SDSS(:,k)));
+    DF_SDSS(k) = 10*log10(1/(Wlow(:,k)'*Rdif*Wlow(:,k)));
+
+    
 end
-
-% if Calibration step enables
-for k = klow:kup+1
-    [R,theta,p] = array_pattern_fft(xMics',Wup,f(k),k); 
-
-    % for side-lobe beam
-    if k < kx2
-        phi_desired_s = 180;
-        phi_zero_s = phi_zero;
-    else
-      [~,locs]=findpeaks(1./R(1:length(R)/2));
-       phi_desired_s = 180;
-       phi_zero_s = phi_zero;   %(locs-1)
-    end
-    fd_s = [1 zeros(size(phi_zero_s))];  % resonse in desired directions
-    phi3_s = [phi_desired_s, phi_zero_s];
-    theta3_s =  90*ones(1,length(phi3_s));
-    W_lo_C = bf_coefs(xMics',theta3_s,phi3_s,fd_s,f,mu,null);
-    
-    % scale factor
-    beta = 2*pi*f(k)/c;
-    df = exp(1j*beta*xMics'*cosd(phi_desired_s(1)));        % steering vector at peak of side-lobe
-    scale = Wup(:,k)'*df;
-
-    W_SDSS_C(:,k) =  scale*W_lo_C(:,k);
-    
-    D = exp(1j*beta*xMics'*cos(p));                    % steering matrix at a frequency
-
-    
-    bp = W_SDSS_C(:,k)'*D;
-    bpdB_SDSS_C(k,:) = abs(bp);%min(20*log10(abs(bp)+eps),dBmax);
-    
-    ds = exp(1j*beta*xMics'*cosd(phi_desired(1)));         % steering vector at look direction
-    WNG_SDSS_C(k) = 10*log10(1/(W_SDSS_C(:,k)'*W_SDSS_C(:,k)));
-    
-    Rdif = spatio_spect_corr(beta,xMics');
-    DF_SDSS_C(k) = 10*log10(1/(W_SDSS_C(:,k)'*Rdif*W_SDSS_C(:,k)));
-end
-
-Wlow = W_SDSS;
 
 
 Hup = fftshift(irfft(Wup,[],2),2);
 Hlow = fftshift(irfft(Wlow,[],2),2);
-Hlow_C = fftshift(irfft(W_SDSS_C,[],2),2);
 
-% fvtool((Hup(4,:)))
-% fvtool((Hlow(4,:)))
 
-% myFig = figure('numbertitle','off','name','FIR coefficients','Units','normal',...
-%    'Position',pos);
-% subplot(2,1,1);
-% imagesc(Hup)
-% subplot(2,1,2);
-% imagesc(Hlow)
+pos = [0.045 0.45 0.3 0.35];
+myFig = figure('numbertitle','off','name','Upper-path beam pattern',...
+       'Units','normal','Position',pos);
+ph = 180/pi*p; 
+  
+imagesc(ph(1:180),f,bpdB_Up(:,1:180));
+axis tight
+%set(gca,'XTick',[0 45 90 135 180]);
+%view([25,50]);
+xlabel('Incident angle \phi in °');
+ylabel('f in Hz');
+zlabel('Magnitude');
+title('Directivity response of the array');
+set(gca, 'xdir', 'reverse');
+set(gca, 'ydir', 'normal');
+%zlim([-dBmax 0])
+set(gcf,'color','w');
+grid on
+colorbar 
+%colormap jet
+set(findall(myFig, 'Type', 'Text'),'FontWeight', 'Normal');
+set(gcf,'defaultAxesFontSize',15)
+set(gca,'FontSize', 15);
+
+
+pos(1) = pos(1)+0.32;
+myFig = figure('numbertitle','off','name','Lower-path beam pattern',...
+       'Units','normal','Position',pos);
+  
+imagesc(ph(1:180),f, bpdB_low(:,1:180));
+axis tight
+%set(gca,'XTick',[0 45 90 135 180]);
+%view([25,50]);
+xlabel('Incident angle \phi in °');
+ylabel('f in Hz');
+zlabel('Magnitude');
+title('Directivity response of the array');
+set(gca, 'xdir', 'reverse');
+set(gca, 'ydir', 'normal');
+%zlim([-dBmax 0])
+set(gcf,'color','w');
+grid on
+colorbar 
+%colormap jet
+set(findall(myFig, 'Type', 'Text'),'FontWeight', 'Normal');
+set(gcf,'defaultAxesFontSize',15)
+set(gca,'FontSize', 15);
 %%
 
 out_ABSS = zeros(length(recsignal(:,1)),1);
@@ -321,37 +334,7 @@ for iLoop = 1:length(recsignal(:,1))- N + 1
    yFill_up(1) = y_beam1;
    y_up = sum(h_u.*yFill_up);
    
-   if 0 % adaptive for null beamforming
-       sig_F = fft(recsignal(iLoop:iLoop+N-1,:),N,1);
-       
-       for k = klow:kup+1
-            Rx1 = sig_F(k,:)'*sig_F(k,:);
-            fd_s = [1 zeros(size(phi_zero))];  % resonse in desired directions
-            phi3_s = [phi_desired_s, phi_zero];
-            theta3_s =  90*ones(1,length(phi3_s));
-            W_lo_C = bf_coefs_R(xMics',theta3_s,phi3_s,fd_s,f,mu,0,Rx1);
-
-            % scale factor
-            beta = 2*pi*f(k)/c;
-            df = exp(1j*beta*xMics'*cosd(phi_desired_s(1)));        % steering vector at peak of side-lobe
-            scale = Wup(:,k)'*df;
-
-            W_SDSS_C(:,k) =  scale*W_lo_C(:,k);
-
-            D = exp(1j*beta*xMics'*cos(p));                    % steering matrix at a frequency
-
-
-            bp = W_SDSS_C(:,k)'*D;
-            bpdB_SDSS_C(k,:) = abs(bp);%min(20*log10(abs(bp)+eps),dBmax);
-
-            ds = exp(1j*beta*xMics'*cosd(phi_desired(1)));         % steering vector at look direction
-            WNG_SDSS_C(k) = 10*log10(1/(W_SDSS_C(:,k)'*W_SDSS_C(:,k)));
-
-            Rdif = spatio_spect_corr(beta,xMics');
-            DF_SDSS_C(k) = 10*log10(1/(W_SDSS_C(:,k)'*Rdif*W_SDSS_C(:,k)));
-       end
-        Hlow_C = fftshift(irfft(W_SDSS_C,[],2),2);
-   end
+   
    y_beam2 = sum(sum(Hlow.*recsignal(iLoop:iLoop+N-1,:)',2),1);
    yFill_low = circshift(yFill_low,1);
    yFill_low(1) = y_beam2;
@@ -365,7 +348,7 @@ for iLoop = 1:length(recsignal(:,1))- N + 1
    % update filter coefficient
    Pk0 = sum(yFill_up.*yFill_up);
    Pk = sum(yFill_low.*yFill_low);
-   Pk0 = 0.9*Pk0 + 0.1*Pk0Old;
+   Pk0 = 0.95*Pk0 + 0.05*Pk0Old;
    mu = alpha2/Pk0;
    delta = mu*y_out*yFill_low;
 %    if delta > 0.1
