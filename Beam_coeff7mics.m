@@ -416,7 +416,7 @@ plot(t*1000,out_ABSS,'r')
 %plot(t*1000,noise(:,4))
 xlabel('Time (ms)')
 if free_field==1
-    legend('Received signal','SOI+Reverberation','ABSS','Location','Best')
+    legend('Received signal','SOI','ABSS','Location','Best')
 else
     legend('Received signal','SOI+Reverberation','ABSS','Location','Best')
 end

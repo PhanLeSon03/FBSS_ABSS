@@ -119,64 +119,64 @@ set(gca,'FontSize', 15);
 axis tight
 % % %--------------------------------------------------------------------------
 
-% Synchronize signal toward look direction in FFT domain
-fStep = fs/N;
-D = zeros(M,N/2+1);
-for iBin = 2:N/2+1
-    fBin = fStep*(iBin-1);
-    beta = 2*pi*fBin/c;        % wavenumber
-    df = exp(-1j*beta*xMics*sind(incidentAngle3(1))); 
-    D(:,iBin) = df;
-end
-
-firD = real(fftshift(irfft(D,N,2)));
-%  fvtool((firD(4,:)),1)
-signal_D = recsignal;
-for iMic=1:M
-   signal_D(:,iMic) = conv(recsignal(:,iMic),firD(iMic,:),'same');
-end
-
-
-% figure()
-% plot(signal(:,1))
-% hold on
-% plot(signal_D(:,1),'r')
-
-
-y_B = zeros(M-1,L);
-h_up = zeros(L,1);
-h_up((L-1)/2+1) = 1;
-h_low = zeros(M-1,L);
-
-
-out = signal_D(:,4);
-% upper path
-for iLoop = 1:length(signal_D(:,1))- L + 1
-   y_c = sum(signal_D(iLoop:iLoop+L-1,:),2)/M;
-   y_up = sum(h_up.*y_c);
-   % blocking matrix
-   for iB = 1:M-1
-      y_B(iB,:) =  signal_D(iLoop:iLoop+L-1,iB) - signal_D(iLoop:iLoop+L-1,iB+1);  
-   end
-   
-   y_low = sum(sum(y_B.*h_low,2),1);
-   
-   y_out = y_up - y_low;
-   
-   Pk = sum(sum(y_B.*y_B,2),1);
-   mu = alpha1/Pk;
-   
-   delta = mu*y_out*y_B;
-%    if delta > 0.1
-%        delta = 0.1;
-%    elseif delta < -0.1
-%        delta = -0.1;
+% % Synchronize signal toward look direction in FFT domain
+% fStep = fs/N;
+% D = zeros(M,N/2+1);
+% for iBin = 2:N/2+1
+%     fBin = fStep*(iBin-1);
+%     beta = 2*pi*fBin/c;        % wavenumber
+%     df = exp(-1j*beta*xMics*sind(incidentAngle3(1))); 
+%     D(:,iBin) = df;
+% end
+% 
+% firD = real(fftshift(irfft(D,N,2)));
+% %  fvtool((firD(4,:)),1)
+% signal_D = recsignal;
+% for iMic=1:M
+%    signal_D(:,iMic) = conv(recsignal(:,iMic),firD(iMic,:),'same');
+% end
+% 
+% 
+% % figure()
+% % plot(signal(:,1))
+% % hold on
+% % plot(signal_D(:,1),'r')
+% 
+% 
+% y_B = zeros(M-1,L);
+% h_up = zeros(L,1);
+% h_up((L-1)/2+1) = 1;
+% h_low = zeros(M-1,L);
+% 
+% 
+% out = signal_D(:,4);
+% % upper path
+% for iLoop = 1:length(signal_D(:,1))- L + 1
+%    y_c = sum(signal_D(iLoop:iLoop+L-1,:),2)/M;
+%    y_up = sum(h_up.*y_c);
+%    % blocking matrix
+%    for iB = 1:M-1
+%       y_B(iB,:) =  signal_D(iLoop:iLoop+L-1,iB) - signal_D(iLoop:iLoop+L-1,iB+1);  
 %    end
-   h_low = h_low + delta; 
-   
-   out((L-1)/2+iLoop) = -y_out;
-   
-end
+% 
+%    y_low = sum(sum(y_B.*h_low,2),1);
+% 
+%    y_out = y_up - y_low;
+% 
+%    Pk = sum(sum(y_B.*y_B,2),1);
+%    mu = alpha1/Pk;
+% 
+%    delta = mu*y_out*y_B;
+% %    if delta > 0.1
+% %        delta = 0.1;
+% %    elseif delta < -0.1
+% %        delta = -0.1;
+% %    end
+%    h_low = h_low + delta; 
+% 
+%    out((L-1)/2+iLoop) = -y_out;
+% 
+% end
 
 % pos = [0.045 0.045 0.45 0.45];
 % 
@@ -247,6 +247,7 @@ nguy = 0.1;
 % end
 Wup(:,klow:kup+1) =  bf_coefs(xMics',theta3,phi3,fd,fStep*(klow-1:kup),mu,null);
 
+
 % for k = kup+2:N/2+1
 %     beta = 2*pi*(k-1)*fStep/c;
 %     df = exp(1j*beta*xMics'*cosd(phi_desired));        % steering vector at peak of side-lobe
@@ -266,7 +267,8 @@ for k = klow:kup+1
    phi_desired_s = locs_max + phi_zero(1) - 1;
 
    
-   phi_zero_s = [0 (locs-1)];    
+   %phi_zero_s = [0 (locs-1)];    
+   phi_zero_s = [0 phi_zero];
     
    fd_s = [1 zeros(size(phi_zero_s))];  % resonse in desired directions
    phi3_s = [phi_desired_s, phi_zero_s];
@@ -302,53 +304,53 @@ Hup = fftshift(irfft(Wup,[],2),2);
 Hlow = fftshift(irfft(Wlow,[],2),2);
 
 
-% pos = [0.045 0.45 0.3 0.35];
-% myFig = figure('numbertitle','off','name','Upper-path beam pattern',...
-%        'Units','normal','Position',pos);
-% ph = 180/pi*p; 
-% 
-% imagesc(ph(1:180),f,bpdB_Up(:,1:180));
-% axis tight
-% %set(gca,'XTick',[0 45 90 135 180]);
-% %view([25,50]);
-% xlabel('Incident angle \phi in °');
-% ylabel('f in Hz');
-% zlabel('Magnitude');
-% title('Directivity response of the array');
-% set(gca, 'xdir', 'reverse');
-% set(gca, 'ydir', 'normal');
-% %zlim([-dBmax 0])
-% set(gcf,'color','w');
-% grid on
-% colorbar 
-% %colormap jet
-% set(findall(myFig, 'Type', 'Text'),'FontWeight', 'Normal');
-% set(gcf,'defaultAxesFontSize',15)
-% set(gca,'FontSize', 15);
-% 
-% 
-% pos(1) = pos(1)+0.32;
-% myFig = figure('numbertitle','off','name','Lower-path beam pattern',...
-%        'Units','normal','Position',pos);
-% 
-% imagesc(ph(1:180),f, bpdB_low(:,1:180));
-% axis tight
-% %set(gca,'XTick',[0 45 90 135 180]);
-% %view([25,50]);
-% xlabel('Incident angle \phi in °');
-% ylabel('f in Hz');
-% zlabel('Magnitude');
-% title('Directivity response of the array');
-% set(gca, 'xdir', 'reverse');
-% set(gca, 'ydir', 'normal');
-% %zlim([-dBmax 0])
-% set(gcf,'color','w');
-% grid on
-% colorbar 
-% %colormap jet
-% set(findall(myFig, 'Type', 'Text'),'FontWeight', 'Normal');
-% set(gcf,'defaultAxesFontSize',15)
-% set(gca,'FontSize', 15);
+pos = [0.045 0.45 0.3 0.35];
+myFig = figure('numbertitle','off','name','Upper-path beam pattern',...
+       'Units','normal','Position',pos);
+ph = 180/pi*p; 
+
+imagesc(ph(1:180),f,bpdB_Up(:,1:180));
+axis tight
+%set(gca,'XTick',[0 45 90 135 180]);
+%view([25,50]);
+xlabel('Incident angle \phi in °');
+ylabel('f in Hz');
+zlabel('Magnitude');
+title('Directivity response of the array');
+set(gca, 'xdir', 'reverse');
+set(gca, 'ydir', 'normal');
+%zlim([-dBmax 0])
+set(gcf,'color','w');
+grid on
+colorbar 
+%colormap jet
+set(findall(myFig, 'Type', 'Text'),'FontWeight', 'Normal');
+set(gcf,'defaultAxesFontSize',15)
+set(gca,'FontSize', 15);
+
+
+pos(1) = pos(1)+0.32;
+myFig = figure('numbertitle','off','name','Lower-path beam pattern',...
+       'Units','normal','Position',pos);
+
+imagesc(ph(1:180),f, bpdB_low(:,1:180));
+axis tight
+%set(gca,'XTick',[0 45 90 135 180]);
+%view([25,50]);
+xlabel('Incident angle \phi in °');
+ylabel('f in Hz');
+zlabel('Magnitude');
+title('Directivity response of the array');
+set(gca, 'xdir', 'reverse');
+set(gca, 'ydir', 'normal');
+%zlim([-dBmax 0])
+set(gcf,'color','w');
+grid on
+colorbar 
+%colormap jet
+set(findall(myFig, 'Type', 'Text'),'FontWeight', 'Normal');
+set(gcf,'defaultAxesFontSize',15)
+set(gca,'FontSize', 15);
 
 
 % fvtool((Hup(4,:)))

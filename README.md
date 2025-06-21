@@ -24,6 +24,9 @@
 - **`Beam_SS_SIR.m`**  
   Evaluates output SINR (oSINR) over SIR across methods:  
   - GSC, ABSS, FBSS at SNR = 0 dB and –10 dB
+  
+- **`learning_rate.m`**  
+  Evaluates output SINR (oSINR) over SIR across different learning rate values and approaches.
 
 ### 🧪 Optional / Legacy
 - **`Beam_SS_SIR_RIR.m`** *(Not used)*  

@@ -12,6 +12,7 @@ N = 512;                    % number of samples in one frame
 M = 7;                      % number of microphones
 L = 511;
 xMics = (-(M-1)/2:(M-1)/2)*dmics;
+% xMics = [-4,-3,-1,0,2,4,6]*dmics;
 
 transducer = phased.OmnidirectionalMicrophoneElement; %('FrequencyRange',[20 20000])
 array = phased.ULA('Element',transducer,'NumElements',M,'ElementSpacing',dmics);
@@ -111,7 +112,7 @@ for k = klow:kup+1
     bp = Wup(:,k)'*D;
     bpdB_Up(k,:) = abs(bp);%min(20*log10(abs(bp)+eps),dBmax);
     
-    Wlow(:,k) = 1*W_s(:,k);
+    Wlow(:,k) = scale*W_s(:,k);
     bp = Wlow(:,k)'*D;
     bpdB_low(k,:) = abs(bp);%min(20*log10(abs(bp)+eps),dBmax);
     
@@ -181,28 +182,27 @@ set(gca,'FontSize', 15);
 %%
 Alg = 1;
 Monte=25;
-SIR = (-30:2.5:10);
+SIR = (-30:5:10);
 
-E1 = zeros(length(SIR),2);
-E2 = zeros(length(SIR),2);
-E3 = zeros(length(SIR),2);
+E1 = zeros(length(SIR),5);
+E2 = zeros(length(SIR),5);
+
 
 K =200;
 yStack = zeros(L,K);
 y_up_stack = zeros(K,1);
 
-for iSNR = 1:2
+
+for iRate = 1:3
     idxE = 1;
+    alpha2 = 0.05*iRate;
     for iSIR = SIR
         sigma_i = sqrt(0.5*10^(-iSIR/10));
         for iMonte = 1:Monte
-            % Simulate a chirp signal with a 500 Hz bandwidth.
-            %Source1 = sigma_i*chirp(t,5000,0.5,5000);%0.5*randn(1,8001);%
-            
 
             Source1=chirp(t,fl,0.5,fu);
 
-            Source2 =  randn(1,8001);%0.5*chirp(t,2000,0.5,2000);%
+            Source2 =  randn(1,8001);
             
 
             Nx=(N/2)-10; % the number of tones
@@ -228,35 +228,26 @@ for iSNR = 1:2
             signal3 = collector(Source3.' ,incidentAngle3);
 
 
-
             signal = signal1 + signal2 + signal3;
 
-            SNR = -(iSNR-1)*10;
+            SNR = -10;
             noise = randn(size(signal));
             noise = sqrt(10^(-SNR/10))*noise/std(noise);
 
             recsignal = signal + noise;
 
-            % pspectrum(recsignal(:,4),fs,'spectrogram','TimeResolution',0.1, ...
-            %       'OverlapPercent',99,'Leakage',0.85)
-
-
-            % MATLAB toolbox for GSC---------------------------------------------------
-            gscbeamformer = phased.GSCBeamformer('SensorArray',array, ...
-                'PropagationSpeed',c,'SampleRate',fs,'DirectionSource','Input port', ...
-                'FilterLength',L,'LMSStepSize',alpha1);
-
-            ygsc = gscbeamformer(recsignal,[90;0]);
-
-
             out_ABSS = zeros(length(recsignal(:,1)),1);
-            out_FBSS = zeros(length(recsignal(:,1)),1);
+            out_ABSS_base = zeros(length(recsignal(:,1)),1);
             yFill_up = zeros(L,1);
             yFill_low = zeros(L,1);
             h_u = zeros(L,1);
             h_u((L-1)/2+1) = 1;
             h_l = zeros(L,1);
             h_l((L-1)/2+1) = 1;
+
+            h_l_base = zeros(L,1);
+            h_l_base((L-1)/2+1) = 1;
+
             gOld = 0;
             PkOld = 0.1;
             Pk0Old = 0.1;
@@ -272,100 +263,85 @@ for iSNR = 1:2
                y_beam2 = sum(sum(Hlow.*recsignal(iLoop:iLoop+N-1,:)',2),1);
                yFill_low = circshift(yFill_low,1);
                yFill_low(1) = y_beam2;
+
                y_low = sum(h_l.*yFill_low);
+               y_low_base = sum(h_l_base.*yFill_low);
 
                y_out = y_up - y_low;
+               y_out_base = y_up - y_low_base;
 
                out_ABSS(N/2-(L-1)/2+iLoop) =  y_out;
-               out_FBSS(N/2-(L-1)/2+iLoop) =   yFill_up((L-1)/2+1) - yFill_low((L-1)/2+1);
-                   % either NLMS algorithm or steepest decent 
-                   if Alg == 1
-                               % update filter coefficient
-                               Pk0 = sum(yFill_up.*yFill_up);
-                               Pk = sum(yFill_low.*yFill_low);
-                               %Pk = 0.95*Pk + 0.05*PkOld;
-                               %PkOld = Pk;
-                               Pk0 = 0.9*Pk0 + 0.1*Pk0Old;
-                               Pk0Old = Pk0;
+               out_ABSS_base(N/2-(L-1)/2+iLoop) =  y_out_base;
+        
+               % update filter coefficient
+               Pk0 = sum(yFill_up.*yFill_up);
+               Pk = sum(yFill_low.*yFill_low);
+               Pk = 0.9*Pk + 0.1*PkOld;
+               PkOld = Pk;
+               Pk0 = 0.9*Pk0 + 0.1*Pk0Old;
+               Pk0Old = Pk0;
 
-                               g = y_out*yFill_low; 
-                               %g = 0.95*g + 0.05*gOld;
-                               %gOld = g;
-
-                               mu = alpha2/Pk0;
-                               delta = mu*g;
-
-                               
-%                                for iD = i:L
-%                                    if delta(iD) > 0.5
-%                                        delta(iD) = 0.5;
-%                                    elseif delta(iD) < -0.5
-%                                        delta(iD) = -0.5;
-%                                    end
-%                                end
-                               h_l = h_l + delta;
-                   else
-                               yStack(:,mod(iLoop,K)+1) = yFill_low; 
-                               y_up_stack(mod(iLoop,K)+1) = y_up;
-
-                               Q = (yStack*yStack')/K ; %  covariance matrix 
-                               b = (yStack*y_up_stack)/K;       %  correlation between upper path and lower path
-                               %h_l = Q^-1*b;
-                               g =Q*h_l -b;
-                               alpha_n = (g'*g/(g'*Q*g+0.01));
-                               delta = - alpha2*alpha_n*g;
-
-                %                for iD = i:L
-                %                    if delta(iD) > 0.5
-                %                        delta(iD) = 0.5;
-                %                    elseif delta(iD) < -0.5
-                %                        delta(iD) = -0.5;
-                %                    end
-                %                end
+               g = y_out*yFill_low; 
+               g_base = y_out_base*yFill_low; 
 
 
-                               h_l = h_l + delta;
-                   end          
+               mu = alpha2/Pk0;
+               delta = mu*g;
+
+               mu = alpha2/Pk;
+               delta_base = mu*g_base;
+               
+               h_l = h_l + delta;
+               h_l_base = h_l_base + delta_base;
+                          
             end
 
 
             idx = 800:6800;
             SOI_std = std(signal3(idx,4));
-            E1(idxE,iSNR) = E1(idxE,iSNR) + 20*log10(SOI_std /(eps +std(ygsc(idx) - signal3(idx,4) )))
-            E2(idxE,iSNR) = E2(idxE,iSNR) + 20*log10(SOI_std /(eps +std(out_ABSS(idx) - signal3(idx,4))))
-            E3(idxE,iSNR) = E3(idxE,iSNR) + 20*log10(SOI_std /(eps +std(out_FBSS(idx) - signal3(idx,4))));
+            E1(idxE,iRate) = E1(idxE,iRate) + 20*log10(SOI_std /(eps +std(out_ABSS_base(idx) - signal3(idx,4) )))
+            E2(idxE,iRate) = E2(idxE,iRate) + 20*log10(SOI_std /(eps +std(out_ABSS(idx) - signal3(idx,4))))
+            
         end
-        E1(idxE,iSNR) = E1(idxE,iSNR)/Monte;
-        E2(idxE,iSNR) = E2(idxE,iSNR)/Monte;
-        E3(idxE,iSNR) = E3(idxE,iSNR)/Monte;
+        E1(idxE,iRate) = E1(idxE,iRate)/Monte;
+        E2(idxE,iRate) = E2(idxE,iRate)/Monte;
         idxE = idxE +1;
     end
 end
+%%
 pos = [0.5 0.0 0.45 0.45];
 
-figure('numbertitle','off','name','oSIR: ABSS, FBSS, GSC','Units','normal',...
+figure('numbertitle','off','name','oSIR: learning rate','Units','normal',...
        'Position',pos);
-
-% === Main Plot ===
 hold on;
-plot(SIR,E1(:,1),'-sb','Linewidth',1.5);
-plot(SIR,E2(:,1),'-sg','Linewidth',1.5);
-plot(SIR,E3(:,1),'-sr','Linewidth',1.5);
-plot(SIR,E1(:,2),'-db','Linewidth',1.5);
-plot(SIR,E2(:,2),'-dg','Linewidth',1.5);
-plot(SIR,E3(:,2),'-dr','Linewidth',1.5);
+% === Main Plot ===
+% Plot for base method (e.g., GSC)
+plot(SIR, E1(:,1), '-ob', 'LineWidth', 1.5); % beta = 0.05
+plot(SIR, E1(:,2), '-^b', 'LineWidth', 1.5); % beta = 0.1
+plot(SIR, E1(:,3), '-sb', 'LineWidth', 1.5); % beta = 0.15
+
+
+% Plot for proposed method (e.g., ABSS adaptive)
+plot(SIR, E2(:,1), '-og', 'LineWidth', 1.5); % beta = 0.05
+plot(SIR, E2(:,2), '-^g', 'LineWidth', 1.5); % beta = 0.1
+plot(SIR, E2(:,3), '-sg', 'LineWidth', 1.5); % beta = 0.15
+
+
 xlabel('SIR (dB)')
 ylabel('oSINR (dB)')
-legend('GSC(SNR=0 dB)','ABSS(SNR=0 dB)','FBSS(SNR=0 dB)', ...
-       'GSC(SNR=-10 dB)','ABSS(SNR=-10 dB)','FBSS(SNR=-10 dB)', ...
-       'Location','Best')
-set(gca,'FontSize',15)
-set(gcf,'color','w');
+legend(...
+    'Base, \beta = 0.05', 'Base, \beta = 0.1', 'Base, \beta = 0.15', ...
+    'Proposed, \beta = 0.05', 'Proposed, \beta = 0.1', 'Proposed, \beta = 0.15', ...
+    'Location','Best')
+
+set(gca, 'FontSize', 15)
+set(gcf, 'color', 'w')
 grid on;
 
+
 % === Define zoomed region ===
-x1 = 4.5; x2 = 5.5;
-y1 = 15; y2 = 19;
+x1 = 4.8; x2 = 5.2;
+y1 = 16.5; y2 = 19;
 
 % === Draw circle to indicate zoom region ===
 theta = linspace(0, 2*pi, 100);
@@ -379,12 +355,17 @@ plot(xc + rx*cos(theta), yc + ry*sin(theta), 'k--', 'LineWidth', 1.2, 'HandleVis
 inset_axes = axes('Position',[0.2 0.7 0.2 0.22]); % Change as needed
 box on;
 hold on;
-plot(SIR,E1(:,1),'-sb','Linewidth',1);
-plot(SIR,E2(:,1),'-sg','Linewidth',1);
-plot(SIR,E3(:,1),'-sr','Linewidth',1);
-plot(SIR,E1(:,2),'-db','Linewidth',1);
-plot(SIR,E2(:,2),'-dg','Linewidth',1);
-plot(SIR,E3(:,2),'-dr','Linewidth',1);
+plot(SIR, E1(:,1), '-ob', 'LineWidth', 1.5); % beta = 0.05
+plot(SIR, E1(:,2), '-^b', 'LineWidth', 1.5); % beta = 0.1
+plot(SIR, E1(:,3), '-sb', 'LineWidth', 1.5); % beta = 0.15
+
+
+% Plot for proposed method (e.g., ABSS adaptive)
+plot(SIR, E2(:,1), '-og', 'LineWidth', 1.5); % beta = 0.5
+plot(SIR, E2(:,2), '-^g', 'LineWidth', 1.5); % beta = 0.1
+plot(SIR, E2(:,3), '-sg', 'LineWidth', 1.5); % beta = 0.15
+x1 = 4.8; x2 = 5.2;
+y1 = 17.7; y2 = 17.9;
 xlim([x1 x2])
 ylim([y1 y2])
 set(gca,'FontSize',10)
@@ -392,26 +373,6 @@ grid on;
 
 
 
-pos(1) = pos(1) + 0.1;
-figure('numbertitle','off','name','oSINR','Units','normal',...
-       'Position',pos);
-
-plot(SIR,E1(:,1),'-sb','Linewidth',1.5)
-hold on
-plot(SIR,E2(:,1),'-sg','Linewidth',1.5)
-
-plot(SIR,E1(:,2),'-db','Linewidth',1.5)
-plot(SIR,E2(:,2),'-dg','Linewidth',1.5)
-
-
-xlabel('SIR (dB)')
-ylabel('oSINR (dB)')
-
-legend('GSC(SNR=0 dB)','ABSS(SNR=0 dB)', 'GSC(SNR=-10 dB)','ABSS(SNR=-10 dB)', 'Location','Best')
-set(gcf,'color','w');
-grid on
-set(gcf,'defaultAxesFontSize',15)
-set(gca,'FontSize', 15);
 
 
 
