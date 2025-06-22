@@ -4,11 +4,11 @@
 
 ## Script Descriptions
 
-### 🔧 Beamformer Design
+### Beamformer Design
 - **`Beam_coeff7mics.m`**  
   Generates beamformer coefficients for a 7-microphone linear array.
 
-### 🧪 Core Experiments
+### Core Experiments
 - **`FBSS.m`**  
   Implements Fixed Beamforming with Suppressed Sidelobes (FBSS).
 
@@ -28,6 +28,5 @@
 - **`learning_rate.m`**  
   Evaluates output SINR (oSINR) over SIR across different learning rate values and approaches.
 
-### 🧪 Optional / Legacy
 - **`Beam_SS_SIR_RIR.m`** *(Not used)*  
   oSINR/SIR evaluation under RIR conditions using GSC, ABSS, and FBSS at SNR = 10 dB and 20 dB.

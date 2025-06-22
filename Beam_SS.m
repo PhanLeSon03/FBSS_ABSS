@@ -267,8 +267,8 @@ for k = klow:kup+1
    phi_desired_s = locs_max + phi_zero(1) - 1;
 
    
-   %phi_zero_s = [0 (locs-1)];    
-   phi_zero_s = [0 phi_zero];
+   phi_zero_s = [0 (locs-1)];    
+   % phi_zero_s = [0 phi_zero];
     
    fd_s = [1 zeros(size(phi_zero_s))];  % resonse in desired directions
    phi3_s = [phi_desired_s, phi_zero_s];

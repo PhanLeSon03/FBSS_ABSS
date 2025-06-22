@@ -111,7 +111,7 @@ for k = klow:kup+1
     bp = Wup(:,k)'*D;
     bpdB_Up(k,:) = abs(bp);%min(20*log10(abs(bp)+eps),dBmax);
     
-    Wlow(:,k) = 1*W_s(:,k);
+    Wlow(:,k) = scale*W_s(:,k);
     bp = Wlow(:,k)'*D;
     bpdB_low(k,:) = abs(bp);%min(20*log10(abs(bp)+eps),dBmax);
     
