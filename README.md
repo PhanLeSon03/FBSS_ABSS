@@ -28,5 +28,8 @@
 - **`learning_rate.m`**  
   Evaluates output SINR (oSINR) over SIR across different learning rate values and approaches.
 
+- **`convergence.m`**  
+  Mean squared error over iterations
+
 - **`Beam_SS_SIR_RIR.m`** *(Not used)*  
   oSINR/SIR evaluation under RIR conditions using GSC, ABSS, and FBSS at SNR = 10 dB and 20 dB.
