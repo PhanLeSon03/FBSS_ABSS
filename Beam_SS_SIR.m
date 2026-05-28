@@ -16,7 +16,7 @@ xMics = (-(M-1)/2:(M-1)/2)*dmics;
 transducer = phased.OmnidirectionalMicrophoneElement; %('FrequencyRange',[20 20000])
 array = phased.ULA('Element',transducer,'NumElements',M,'ElementSpacing',dmics);
 alpha1 = 0.01;
-alpha2 = 0.01;
+alpha2 = (M-1)*0.01;
 t = 0:1/fs:0.5;
 
 incidentAngle1 = [0 ;0]; %10° azimuth and 90° elevation, 0 = 90 -90
@@ -180,7 +180,7 @@ set(gcf,'defaultAxesFontSize',15)
 set(gca,'FontSize', 15);
 %%
 Alg = 1;
-Monte=25;
+Monte=100;
 SIR = (-30:2.5:10);
 
 E1 = zeros(length(SIR),2);

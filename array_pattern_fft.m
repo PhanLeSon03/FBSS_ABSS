@@ -23,13 +23,13 @@ function [R,theta,phi] = array_pattern_fft(mics,W,f,k)
    
    if (K == 1)             % 1-dim Array?
       theta = pi/2;
-      D = exp(j*beta*mics*cos(phi));        % matrix of steering vectors
+      D = exp(1j*beta*mics*cos(phi));        % matrix of steering vectors
       R = abs(W(:,k)'*D).^2;
    else
       theta = pi/180*(0:2.5:90);
       Nphi = length(phi);
       Ntheta = length(theta);
-      U = j*beta*mics;
+      U = 1j*beta*mics;
       V =[cos(phi) ; sin(phi)];  
       R = zeros(Ntheta,Nphi);
       for m = 1:Ntheta

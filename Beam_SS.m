@@ -404,46 +404,48 @@ for iLoop = 1:length(recsignal(:,1))- N + 1
    
 end
 
+%%
 pos = [0.5 0.0 0.45 0.45];
-
-figure('numbertitle','off','name','Wave signals','Units','normal',...
-       'Position',pos);
-plot(t*1000,recsignal(:,4))
-hold on
-plot(t*1000,Source3,'g','Linewidth',2)
-plot(t*1000,out_ABSS,'r')
-xlabel('Time (ms)')
-legend('Received signal','SOI','ABSS','Location','Best')
-grid on
-    set(gcf,'defaultAxesFontSize',15)
-    set(gca,'FontSize', 15);
+% 
+% figure('numbertitle','off','name','Wave signals','Units','normal',...
+%        'Position',pos);
+% plot(t*1000,recsignal(:,4))
+% hold on
+% plot(t*1000,Source3,'g','Linewidth',2)
+% plot(t*1000,out_ABSS,'r')
+% xlabel('Time (ms)')
+% legend('Received signal','SOI','ABSS','Location','Best')
+% grid on
+%     set(gcf,'defaultAxesFontSize',15)
+%     set(gca,'FontSize', 15);
     
 pos(2) = pos(2) +0.3;
 figure('numbertitle','off','name','Wave signals','Units','normal',...
        'Position',pos);
-idx = 5800:7200;
+idx = 5950:6550;
 plot(t(idx)*1000,recsignal(idx,4))
 hold on
 plot(t(idx)*1000,Source3(idx),'g','Linewidth',2)
 plot(t(idx)*1000,out_ABSS(idx),'r')
 xlabel('Time (ms)')
-legend('Received signal','SOI','ABSS','Location','Best')
+legend('Received signal','SOI','ABSS','Location','north')
 grid on
 set(gcf,'color','w');
 set(gcf,'defaultAxesFontSize',15)
 set(gca,'FontSize', 15);
 axis tight
 
+
 pos(2) = pos(2) - 0.3;
 figure('numbertitle','off','name','Wave signales','Units','normal',...
        'Position',pos);
-idx = 5800:7000;
-plot(t(idx)*1000,signal3(idx,4),'g','Linewidth',2)
+idx = 5950:6550;
+plot(t(idx)*1000,recsignal(idx,4))
 hold on
-plot(t(idx)*1000,ygsc(idx),'b')
-plot(t(idx)*1000,out_ABSS(idx),'r')
+plot(t(idx)*1000,Source3(idx),'g','Linewidth',2)
+plot(t(idx)*1000,ygsc(idx),'r')
 xlabel('Time (ms)')
-legend('SOI','GSC','ABSS','Location','Best')
+legend('Received signal','SOI','GSC','Location','north')
     set(gcf,'color','w'); 
     set(gcf,'defaultAxesFontSize',15)
     set(gca,'FontSize', 15);

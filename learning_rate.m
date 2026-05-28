@@ -181,7 +181,7 @@ set(gcf,'defaultAxesFontSize',15)
 set(gca,'FontSize', 15);
 %%
 Alg = 1;
-Monte=25;
+Monte=100;
 SIR = (-30:5:10);
 
 E1 = zeros(length(SIR),5);
@@ -340,7 +340,7 @@ grid on;
 
 
 % === Define zoomed region ===
-x1 = 4.8; x2 = 5.2;
+x1 = 4.7; x2 = 5.3;
 y1 = 16.5; y2 = 19;
 
 % === Draw circle to indicate zoom region ===

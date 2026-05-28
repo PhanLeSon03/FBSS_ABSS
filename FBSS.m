@@ -18,7 +18,7 @@ null = 1;                    % parameter for beam-forming
 
 M = 7;                  % number of sensors
 x_array = ones(1,M);    % uniform array geometry
-dmics = 0.02;          % inter-dsitance  
+dmics = 0.02;           % inter-distance  
 
 % for main-lobe beam
 phi_desired = 0;
@@ -27,7 +27,7 @@ phi_zero = [70 150];
 theta_desired = 90;
 theta_zero = [90 90];
 
-fd = [1 zeros(size(phi_zero))];  % resonse in desired directions
+fd = [1 zeros(size(phi_zero))];  % response in desired directions
 
 phi3 = [phi_desired phi_zero];
 theta3 = [theta_desired theta_zero];
@@ -53,7 +53,7 @@ phi_zero_SDM = [70 150 180];
 theta_desired_SDM = 90;
 theta_zero_SDM = [90 90 90];
 
-fd_SDM = [1 zeros(size(phi_zero_SDM))];  % resonse in desired directions
+fd_SDM = [1 zeros(size(phi_zero_SDM))];  % response in desired directions
 
 phi3_SDM = [phi_desired_SDM phi_zero_SDM];
 theta3_SDM = [theta_desired_SDM theta_zero_SDM];
@@ -140,21 +140,24 @@ for k = 1:length(fp)
     set(ght,'color','black');
     set(gcf,'color','w');  
     set(gca,'FontSize', 15);
-    hold on
 
-    RdB_ss = max(0,10*log10(R_ss+eps)+dBmax);
-    polarplot(p,RdB_ss,'-r','LineWidth',1.5);
+    hold on
+    polarplot(p,RdB_s,'--m','LineWidth',1.5);
     
-    polarplot(p,RdB_SDM,'--g','LineWidth',1.5);
-    
-    legend('Upper path','FBSS','SDM','Location','southoutside')
+    legend('Upper path','Lower path','Location','southoutside')
     hold off
     
     subplot(1,2,2); 
-    polarplot(p,RdB_s,'b','LineWidth',1.5);
+    
+
+    RdB_ss = max(0,10*log10(R_ss+eps)+dBmax);
+    polarplot(p,RdB_ss,'-r','LineWidth',1.5);
+    hold on
+    polarplot(p,RdB_SDM,'--g','LineWidth',1.5);
+
     %ght = title(sprintf('Lower path''s beam pattern, f = %3.0f Hz', fp(k)),'FontSize',10);
     ght = title(sprintf('f = %3.0f Hz', fp(k)),'FontSize',15);
-    legend('Lower path','FBSS','Location','southoutside')
+    legend('FBSS','SDM','Location','southoutside')
     pos(1) = pos(1) + 0.15;
     set(findall(myFig, 'Type', 'Text'),'FontWeight', 'Normal');
     set(gca,'FontSize', 15);
@@ -177,31 +180,52 @@ bpdB_SDSS = zeros(nf,Nphi);
 
 
 W_SDSS = zeros(M,nf);
+scales = zeros(1,nf);
+numNulls = zeros(1,nf);
+R_all = [];
+p_all = [];
 
 kx = round(1000/Fsh*Nh)-klow+1; % index threshold for spatial aliasing
 for k = 1:nf
+
+    
     [R,t,p] = array_pattern_fft(mics,W,f(k),k); 
 
+
+    if k == 1
+        R_all = zeros(nf, length(R));
+        p_all = p;
+    end
+    R_all(k,:) = R(:).';
     
     % for side-lobe beam
     if k < kx
-        phi_desired_s = 180;
-        phi_zero_s = [0 phi_zero];
-    else
-      [~,locs]=findpeaks(1./R(1:length(R)/2));
        phi_desired_s = 180;
-       phi_zero_s = [0 (locs-1)];  
+       phi_zero_s = [0 phi_zero];
+    else
+       curve_inv = 1./ R(1:floor(length(R)/2));
+
+       [~, locs] = findpeaks(10*log10(curve_inv))
+
+       % plot(10*log10(1./curve_inv));
+       % title(sprintf(' Upper-path Beampattern at %.0f Hz', k*Fsh/Nh));
+       % input('Press Enter to continue...');
+        
+       phi_desired_s = 180;
+       phi_zero_s = [0 (locs-1)];
     end
-    fd_s = [ones(size(phi_desired_s)) zeros(size(phi_zero_s))];  % resonse in desired directions
+    fd_s = [ones(size(phi_desired_s)) zeros(size(phi_zero_s))];  % response in desired directions
     phi3_s = [phi_desired_s, phi_zero_s];
     theta3_s =  90*ones(1,length(phi3_s));
     W_s = bf_coefs(mics,theta3_s,phi3_s,fd_s,f,mu,null);
     
     % scale factor
     beta = 2*pi*f(k)/vs;
-    df = exp(j*beta*mics*cosd(phi_desired_s(1)));        % steering vector at peak of side-lobe
+    df = exp(1j*beta*mics*cosd(phi_desired_s(1)));        % steering vector at peak of side-lobe
     scale = W(:,k)'*df;
-    
+    scales(k) = scale;
+    numNulls(k) = length(phi_zero_s);
+
     W_SDSS(:,k) = W(:,k)-(scale)*W_s(:,k);
     
     ds = exp(1j*beta*mics*cosd(phi_desired(1)));         % steering vector at look direction
@@ -218,25 +242,62 @@ for k = 1:nf
     D = exp(1j*beta*mics*cos(p));                    % steering matrix at a frequency
     bp = W(:,k)'*D;
     bpdB_SD(k,:) = abs(bp);%min(20*log10(abs(bp)+eps),dBmax);
+
     bp = W_SDSS(:,k)'*D;
     bpdB_SDSS(k,:) = abs(bp);%min(20*log10(abs(bp)+eps),dBmax);
     
     bp = (scale)*W_s(:,k)'*D;
-    bpdB_SD_low(k,:) = abs(bp)
+    bpdB_SD_low(k,:) = abs(bp);
 end
 
+% 
+% % -------------------------------------------------------------------------
+% % Plot all R over frequency
+% % -------------------------------------------------------------------------
+% figure;
+% imagesc(p_all, f, R_all);
+% axis xy;
+% xlabel('\phi (degree)');
+% ylabel('Frequency (Hz)');
+% title('Array Pattern R over Frequency');
+% colorbar;
+% 
+% % -------------------------------------------------------------------------
+% % Plot inverse R used for null detection
+% % -------------------------------------------------------------------------
+% R_inv_all = max(max(R_all)) - R_all;
+% 
+% figure;
+% imagesc(p_all, f, R_inv_all);
+% axis xy;
+% xlabel('\phi (degree)');
+% ylabel('Frequency (Hz)');
+% title('1/R over Frequency for Null Detection');
+% colorbar;
+% 
+% % -------------------------------------------------------------------------
+% % Plot detected null count versus frequency
+% % -------------------------------------------------------------------------
+% figure;
+% plot(f, numNulls, 'LineWidth', 2);
+% grid on;
+% xlabel('Frequency (Hz)');
+% ylabel('Number of detected nulls');
+% title('Number of Lower-path Nulls versus Frequency');
+
 %% plot phase of 2 beamforming
-pos = [0.055 0.04 0.4 0.38];
-figure('numbertitle','off','name','Phases',...
-       'Units','normal','Position',pos); %%sop1hc ,'Menubar','none'
-plot(0:1:180,Phase*180/pi,'-b')
-hold on
-plot(0:1:180,Phase_s*180/pi,'-r')
-legend('Upper path','Lower path','Location','SouthEast');
-grid on;
-set(gcf,'color','w');
-xlabel('Arrival direction');
-ylabel('Phase');
+% pos = [0.055 0.04 0.4 0.38];
+% figure('numbertitle','off','name','Phases',...
+%        'Units','normal','Position',pos); %%sop1hc ,'Menubar','none'
+% plot(0:1:180,Phase*180/pi,'-b')
+% hold on
+% plot(0:1:180,Phase_s*180/pi,'-r')
+% 
+% legend('Upper path','Lower path','Location','SouthEast');
+% grid on;
+% set(gcf,'color','w');
+% xlabel('Arrival direction');
+% ylabel('Phase');
 
 
 %%
@@ -264,7 +325,10 @@ plot(f,DF_SD,'-sb','LineWidth',1.0)
 hold on
 plot(f,DF_SDSS,'-dr','LineWidth',1.0)
 plot(f,DF_SDM,'-^g','LineWidth',1.0)
-legend('Upper path','FBSS','SDM','Location','SouthEast');
+% plot(f,20*scales)
+% plot(f,numNulls);
+% legend('Upper path','FBSS','SDM', '20*scales','N.o.Nulls', 'Location','SouthEast');
+legend('Upper path','FBSS','SDM', 'Location','SouthEast');
 grid on;
 set(gcf,'color','w');
 xlabel('Frequency (Hz)');
