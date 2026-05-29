@@ -223,7 +223,7 @@ Wup = zeros(M,nf);
 phi_desired = 0;
 phi_zero = [70 150];
 
-fd = [1 zeros(size(phi_zero))];  % resonse in desired directions
+fd = [1 zeros(size(phi_zero))];  % response in desired directions
 
 phi3 = [phi_desired phi_zero];
 theta3 = 90*ones(1,length(fd));
